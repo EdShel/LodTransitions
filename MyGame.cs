@@ -1,4 +1,5 @@
 ﻿using ImGuiNET;
+using LodTransitions.Cameras;
 using LodTransitions.ImGuiRendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -15,12 +16,17 @@ namespace LodTransitions
         private ImGuiRenderer imGuiRenderer;
         private float rotation = 0f;
 
+        private DebugLookAroundCamera camera;
+
         public MyGame()
         {
             this.graphics = new GraphicsDeviceManager(this);
             this.Content.RootDirectory = "Content";
             this.IsMouseVisible = true;
+            this.camera = new DebugLookAroundCamera(this, position: new Vector3(0, 0.1f, 0), rotation: Vector3.Zero);
         }
+
+        private Effect axisShader;
 
         protected override void Initialize()
         {
@@ -34,6 +40,7 @@ namespace LodTransitions
         protected override void LoadContent()
         {
             this.spriteBatch = new SpriteBatch(this.GraphicsDevice);
+            this.axisShader = Content.Load<Effect>("axis_shader");
         }
 
         protected override void Update(GameTime gameTime)
@@ -41,7 +48,7 @@ namespace LodTransitions
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            // TODO: Add your update logic here
+            this.camera.Update(gameTime.ElapsedGameTime);
 
             base.Update(gameTime);
         }
@@ -54,26 +61,43 @@ namespace LodTransitions
 
             var sb = new StringBuilder();
 
-            foreach (ModelMesh mesh in model.Meshes)
+            var view = this.camera.Transform;
+            var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 1, 200);
+
+            this.axisShader.Parameters["WorldViewProjection"].SetValue(view * proj);
+            this.axisShader.CurrentTechnique.Passes[0].Apply();
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, new[]
             {
-                foreach (BasicEffect meshEffect in mesh.Effects)
-                {
-                    meshEffect.EnableDefaultLighting();
-                    meshEffect.PreferPerPixelLighting = true;
-                    meshEffect.World = Matrix.CreateTranslation(0, 0, 0) * Matrix.CreateRotationZ(this.rotation);
-                    this.rotation += (float)gameTime.ElapsedGameTime.TotalMilliseconds * 0.001f;
+                new VertexPositionColor(new Vector3(0, 0, 0), Color.Red),
+                new VertexPositionColor(new Vector3(1f, 0, 0), Color.Red),
 
-                    var view = Matrix.CreateLookAt(new Vector3(0f, 10f, 3f), Vector3.Zero, new Vector3(0, 0, 1f));
-                    var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 1, 200);
+                new VertexPositionColor(new Vector3(0, 0, 0), Color.Green),
+                new VertexPositionColor(new Vector3(0, 1f, 0), Color.Green),
 
-                    meshEffect.View = view;
-                    meshEffect.Projection = proj;
+                new VertexPositionColor(new Vector3(0, 0, 0), Color.Blue),
+                new VertexPositionColor(new Vector3(0, 0, 1f), Color.Blue),
+            }, 0, 3);
 
-                    sb.AppendLine(meshEffect.Name ?? "<null>");
-                }
+            //foreach (ModelMesh mesh in model.Meshes)
+            //{
+            //    foreach (BasicEffect meshEffect in mesh.Effects)
+            //    {
+            //        meshEffect.EnableDefaultLighting();
+            //        meshEffect.PreferPerPixelLighting = true;
+            //        meshEffect.World = Matrix.CreateTranslation(0, 0, 0);
+            //        this.rotation += (float)gameTime.ElapsedGameTime.TotalMilliseconds * 0.001f;
 
-                mesh.Draw();
-            }
+            //        var view = this.camera.Transform;
+            //        var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 1, 200);
+
+            //        meshEffect.View = view;
+            //        meshEffect.Projection = proj;
+
+            //        sb.AppendLine(mesh.Name ?? "<null>");
+            //    }
+
+            //    mesh.Draw();
+            //}
 
             this.imGuiRenderer.BeforeLayout(gameTime);
 

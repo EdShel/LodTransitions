@@ -13,6 +13,12 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin axis_shader.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:axis_shader.fx
+
 #begin castle.fbx
 /importer:FbxImporter
 /processor:ModelProcessor
