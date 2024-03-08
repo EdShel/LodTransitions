@@ -18,18 +18,60 @@ namespace LodTransitions.Rendering
             this.LodModel = lodModel;
         }
 
-        public Matrix World => Matrix.CreateTranslation(this.Position);
-
-        public ModelMesh FindMesh(Vector3 cameraPosition)
+        public void Draw(World3D world)
         {
-            float distanceToCameraSqr = (this.Position - cameraPosition).LengthSquared();
-            return this.LodModel.FindMesh(distanceToCameraSqr);
+            float distanceToCameraSqr = (this.Position - world.ObserverPosition).LengthSquared();
+            LodLevel currentLevel = this.LodModel.FindLodLevel(distanceToCameraSqr);
+
+        }
+    }
+
+
+    public class LodTransition
+    {
+        public LodLevel Start { get; set; }
+        public LodLevel End { get; set; }
+        public float Progress { get; set; }
+
+        public void Draw(Matrix transform, World3D world)
+        {
+            BlendState oldBlend = world.Graphics.BlendState;
+            DepthStencilState oldDepth = world.Graphics.DepthStencilState;
+            world.Graphics.BlendState = BlendState.AlphaBlend;
+            world.Graphics.DepthStencilState = DepthStencilState.None;
+
+            foreach (BasicEffect meshEffect in this.Start.Mesh.Effects)
+            {
+                meshEffect.EnableDefaultLighting();
+                meshEffect.PreferPerPixelLighting = true;
+                meshEffect.World = transform;
+                meshEffect.View = world.Camera.View.Matrix;
+                meshEffect.Projection = world.Camera.Projection.Matrix;
+
+                meshEffect.Alpha = Math.Clamp(1f - this.Progress, 0f, 1f);
+            }
+            this.Start.Mesh.Draw();
+
+            foreach (BasicEffect meshEffect in this.End.Mesh.Effects)
+            {
+                meshEffect.EnableDefaultLighting();
+                meshEffect.PreferPerPixelLighting = true;
+                meshEffect.World = transform;
+                meshEffect.View = world.Camera.View.Matrix;
+                meshEffect.Projection = world.Camera.Projection.Matrix;
+
+                meshEffect.Alpha = Math.Clamp(this.Progress, 0f, 1f);
+            }
+            this.End.Mesh.Draw();
+
+            world.Graphics.BlendState = oldBlend;
+            world.Graphics.DepthStencilState = oldDepth;
         }
     }
 
     public class LodModel
     {
-        internal List<LodMesh> Lods { get; private set; }
+        internal List<LodLevel> Lods { get; private set; }
 
         private static Regex lodMeshPattern = new Regex(@"\.LOD(\d+)$");
 
@@ -49,7 +91,7 @@ namespace LodTransitions.Rendering
 
             var lods = lodMatches
                 .Select(m => int.Parse(m.Groups[1].ValueSpan))
-                .Zip(model.Meshes, (lodId, mesh) => new LodMesh
+                .Zip(model.Meshes, (lodId, mesh) => new LodLevel
                 {
                     LodId = lodId,
                     Mesh = mesh,
@@ -65,21 +107,21 @@ namespace LodTransitions.Rendering
             };
         }
 
-        public ModelMesh FindMesh(float distanceSqr)
+        public LodLevel FindLodLevel(float distanceSqr)
         {
             foreach (var lod in this.Lods)
             {
                 if (distanceSqr >= lod.DistanceSqr)
                 {
-                    return lod.Mesh;
+                    return lod;
                 }
             }
 
-            return this.Lods.Last().Mesh;
+            return this.Lods.Last();
         }
     }
 
-    public class LodMesh
+    public class LodLevel
     {
         public int LodId;
         public ModelMesh Mesh;

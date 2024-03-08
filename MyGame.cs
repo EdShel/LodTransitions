@@ -1,11 +1,10 @@
 ﻿using ImGuiNET;
-using LodTransitions.Cameras;
 using LodTransitions.ImGuiRendering;
 using LodTransitions.Rendering;
+using LodTransitions.Rendering.Cameras;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using System.Text;
 
 namespace LodTransitions
 {
@@ -17,17 +16,15 @@ namespace LodTransitions
         private ImGuiRenderer imGuiRenderer;
         private float rotation = 0f;
 
-        private DebugLookAroundCamera camera;
-
         public MyGame()
         {
             this.graphics = new GraphicsDeviceManager(this);
             this.Content.RootDirectory = "Content";
             this.IsMouseVisible = true;
-            this.camera = new DebugLookAroundCamera(this, position: new Vector3(0, 5f, -10f), rotation: Vector3.Zero);
         }
 
         private Effect axisShader;
+        private PerspectiveLookAtTargetCamera camera;
 
         protected override void Initialize()
         {
@@ -35,10 +32,27 @@ namespace LodTransitions
             this.imGuiRenderer = new ImGuiRenderer(this);
             this.imGuiRenderer.RebuildFontAtlas();
 
+            camera = new PerspectiveLookAtTargetCamera(
+                ViewConfig: new LookAtTargetCameraViewConfig
+                {
+                    LookAt = Vector3.Zero,
+                    Position = Vector3.Zero,
+                    Up = Vector3.Up,
+                },
+                ProjectionConfig: new PerspectiveCameraProjectionConfig
+                {
+                    Fov = MathHelper.PiOver2,
+                    NearPlane = 0.001f,
+                    FarPlane = 200f,
+                    AspectRatio = this.GraphicsDevice.Viewport.AspectRatio,
+                }
+            );
+
             base.Initialize();
         }
 
         private LodModelRenderer lodModelRenderer = null!;
+        private LodTransition lodTransition;
 
         protected override void LoadContent()
         {
@@ -47,6 +61,11 @@ namespace LodTransitions
             var model = this.Content.Load<Model>("stanford-bunny");
             var lodModel = LodModel.CreateWithAutomaticDistances(model, 15f);
             this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel);
+            this.lodTransition = new LodTransition
+            {
+                Start = lodModel.Lods[0],
+                End = lodModel.Lods[1],
+            };
         }
 
         protected override void Update(GameTime gameTime)
@@ -54,26 +73,27 @@ namespace LodTransitions
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            this.camera.Update(gameTime.ElapsedGameTime);
-
             base.Update(gameTime);
         }
 
         private float cameraOffset = 1.0f;
 
+        private float progress;
+
         protected override void Draw(GameTime gameTime)
         {
             this.GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            this.cameraOffset += (float)gameTime.ElapsedGameTime.TotalSeconds * 6;
-            this.cameraOffset = this.cameraOffset % 20f;
+            var world3d = new World3D
+            {
+                Camera = this.camera,
+                Dt = (float)gameTime.ElapsedGameTime.TotalSeconds,
+                Graphics = this.GraphicsDevice
+            };
 
-            //var view = this.camera.Transform;
-            Vector3 cameraPosition = new Vector3(0, 0, 1f) * cameraOffset;
-            var view = Matrix.CreateLookAt(cameraPosition, Vector3.Zero, Vector3.Up);
-            var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 0.01f, 200f);
+            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * 1.5f;
 
-            this.axisShader.Parameters["WorldViewProjection"].SetValue(view * proj);
+            this.axisShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
             this.axisShader.CurrentTechnique.Passes[0].Apply();
             this.GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, new[]
             {
@@ -87,23 +107,13 @@ namespace LodTransitions
                 new VertexPositionColor(new Vector3(0, 0, 1f), Color.Blue),
             }, 0, 3);
 
-            var mesh = this.lodModelRenderer.FindMesh(cameraPosition);
-            foreach (BasicEffect meshEffect in mesh.Effects)
-            {
-                meshEffect.EnableDefaultLighting();
-                meshEffect.PreferPerPixelLighting = true;
-                meshEffect.World = this.lodModelRenderer.World;
-
-                meshEffect.View = view;
-                meshEffect.Projection = proj;
-            }
-
-            mesh.Draw();
+            this.lodTransition.Progress = progress;
+            this.lodTransition.Draw(Matrix.Identity, world3d);
 
             this.imGuiRenderer.BeforeLayout(gameTime);
 
             ImGui.Begin("Debug");
-            ImGui.Text("Camera dist " + cameraPosition.Length());
+            ImGui.SliderFloat("Progress", ref progress, 0, 1);
 
             ImGui.End();
 
