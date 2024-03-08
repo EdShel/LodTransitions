@@ -32,7 +32,6 @@ namespace LodTransitions.Cameras
             this.game.IsMouseVisible = !mouseLockEnabled;
             if (mouseLockEnabled)
             {
-
                 var mouseState = Mouse.GetState();
                 if (this.prevMouseState != null)
                 {
@@ -40,9 +39,8 @@ namespace LodTransitions.Cameras
 
                     int yawDelta = mouseState.X - windowX / 2;
                     int pitchDelta = mouseState.Y - windowY / 2;
-                    this.rotation.Z += yawDelta * this.MouseSensitivity;
-                    this.rotation.Y += pitchDelta * this.MouseSensitivity;
-                    this.rotation.X = MathHelper.Clamp(this.rotation.X, -MathHelper.Pi, MathHelper.Pi);
+                    this.rotation.Y += yawDelta * this.MouseSensitivity;
+                    this.rotation.X = MathHelper.Clamp(this.rotation.X + pitchDelta * this.MouseSensitivity, -MathHelper.PiOver2, MathHelper.PiOver2);
 
                     Mouse.SetPosition(windowX / 2, windowY / 2);
                 }
@@ -53,21 +51,25 @@ namespace LodTransitions.Cameras
                 this.prevMouseState = null;
             }
 
-            var rotationMatrix = Matrix.CreateFromYawPitchRoll(this.rotation.Z, this.rotation.Y, this.rotation.X);
+            var rotationMatrix = Matrix.CreateRotationX(this.rotation.X)
+                * Matrix.CreateRotationY(this.rotation.Y);
 
             Vector2 moveDirection = GetDirection(keyboardState);
-            Vector3 transformBasisForward = rotationMatrix.Forward;
-            Vector3 transformBasisRight = rotationMatrix.Left;
-
-            Debug.WriteLine(transformBasisForward);
+            Vector3 forward = rotationMatrix.Forward;
+            Vector3 right = rotationMatrix.Right;
 
             float dt = (float)deltaTime.TotalSeconds;
             this.position +=
-                moveDirection.Y * transformBasisForward * this.MovementSpeedMetersPerSecond * dt
-                + moveDirection.X * transformBasisRight * this.MovementSpeedMetersPerSecond * dt;
+                moveDirection.Y * forward * this.MovementSpeedMetersPerSecond * dt
+                + moveDirection.X * right * this.MovementSpeedMetersPerSecond * dt;
 
-            this.Transform = Matrix.CreateTranslation(this.position)
-                * rotationMatrix;
+            if (keyboardState.IsKeyDown(Keys.Space))
+            {
+                float yDir = keyboardState.IsKeyDown(Keys.LeftShift) ? -1f : 1f;
+                this.position.Y += yDir * this.MovementSpeedMetersPerSecond * dt;
+            }
+
+            this.Transform = Matrix.CreateTranslation(this.position);
         }
 
         private static Vector2 GetDirection(in KeyboardState keyboardState)

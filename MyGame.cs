@@ -1,6 +1,7 @@
 ﻿using ImGuiNET;
 using LodTransitions.Cameras;
 using LodTransitions.ImGuiRendering;
+using LodTransitions.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -23,7 +24,7 @@ namespace LodTransitions
             this.graphics = new GraphicsDeviceManager(this);
             this.Content.RootDirectory = "Content";
             this.IsMouseVisible = true;
-            this.camera = new DebugLookAroundCamera(this, position: new Vector3(0, 0.1f, 0), rotation: Vector3.Zero);
+            this.camera = new DebugLookAroundCamera(this, position: new Vector3(0, 5f, -10f), rotation: Vector3.Zero);
         }
 
         private Effect axisShader;
@@ -37,10 +38,15 @@ namespace LodTransitions
             base.Initialize();
         }
 
+        private LodModelRenderer lodModelRenderer = null!;
+
         protected override void LoadContent()
         {
             this.spriteBatch = new SpriteBatch(this.GraphicsDevice);
-            this.axisShader = Content.Load<Effect>("axis_shader");
+            this.axisShader = this.Content.Load<Effect>("axis_shader");
+            var model = this.Content.Load<Model>("stanford-bunny");
+            var lodModel = LodModel.CreateWithAutomaticDistances(model, 15f);
+            this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel);
         }
 
         protected override void Update(GameTime gameTime)
@@ -53,20 +59,23 @@ namespace LodTransitions
             base.Update(gameTime);
         }
 
+        private float cameraOffset = 1.0f;
+
         protected override void Draw(GameTime gameTime)
         {
             this.GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            var model = this.Content.Load<Model>("castle");
+            this.cameraOffset += (float)gameTime.ElapsedGameTime.TotalSeconds * 6;
+            this.cameraOffset = this.cameraOffset % 20f;
 
-            var sb = new StringBuilder();
-
-            var view = this.camera.Transform;
-            var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 1, 200);
+            //var view = this.camera.Transform;
+            Vector3 cameraPosition = new Vector3(0, 0, 1f) * cameraOffset;
+            var view = Matrix.CreateLookAt(cameraPosition, Vector3.Zero, Vector3.Up);
+            var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 0.01f, 200f);
 
             this.axisShader.Parameters["WorldViewProjection"].SetValue(view * proj);
             this.axisShader.CurrentTechnique.Passes[0].Apply();
-            GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, new[]
+            this.GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, new[]
             {
                 new VertexPositionColor(new Vector3(0, 0, 0), Color.Red),
                 new VertexPositionColor(new Vector3(1f, 0, 0), Color.Red),
@@ -78,33 +87,23 @@ namespace LodTransitions
                 new VertexPositionColor(new Vector3(0, 0, 1f), Color.Blue),
             }, 0, 3);
 
-            //foreach (ModelMesh mesh in model.Meshes)
-            //{
-            //    foreach (BasicEffect meshEffect in mesh.Effects)
-            //    {
-            //        meshEffect.EnableDefaultLighting();
-            //        meshEffect.PreferPerPixelLighting = true;
-            //        meshEffect.World = Matrix.CreateTranslation(0, 0, 0);
-            //        this.rotation += (float)gameTime.ElapsedGameTime.TotalMilliseconds * 0.001f;
+            var mesh = this.lodModelRenderer.FindMesh(cameraPosition);
+            foreach (BasicEffect meshEffect in mesh.Effects)
+            {
+                meshEffect.EnableDefaultLighting();
+                meshEffect.PreferPerPixelLighting = true;
+                meshEffect.World = this.lodModelRenderer.World;
 
-            //        var view = this.camera.Transform;
-            //        var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.PiOver4, this.GraphicsDevice.Viewport.AspectRatio, 1, 200);
+                meshEffect.View = view;
+                meshEffect.Projection = proj;
+            }
 
-            //        meshEffect.View = view;
-            //        meshEffect.Projection = proj;
-
-            //        sb.AppendLine(mesh.Name ?? "<null>");
-            //    }
-
-            //    mesh.Draw();
-            //}
+            mesh.Draw();
 
             this.imGuiRenderer.BeforeLayout(gameTime);
 
             ImGui.Begin("Debug");
-
-            var result = sb.ToString();
-            ImGui.Text(string.IsNullOrEmpty(result) ? "N/A" : result);
+            ImGui.Text("Camera dist " + cameraPosition.Length());
 
             ImGui.End();
 
