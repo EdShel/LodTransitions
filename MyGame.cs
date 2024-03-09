@@ -5,6 +5,7 @@ using LodTransitions.Rendering.Cameras;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace LodTransitions
 {
@@ -54,10 +55,13 @@ namespace LodTransitions
         private LodModelRenderer lodModelRenderer = null!;
         private LodTransition lodTransition;
 
+        private Effect noiseShader;
+
         protected override void LoadContent()
         {
             this.spriteBatch = new SpriteBatch(this.GraphicsDevice);
             this.axisShader = this.Content.Load<Effect>("axis_shader");
+            this.noiseShader = this.Content.Load<Effect>("noise_shader");
             var model = this.Content.Load<Model>("stanford-bunny");
             var lodModel = LodModel.CreateWithAutomaticDistances(model, 15f);
             this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel);
@@ -107,8 +111,32 @@ namespace LodTransitions
                 new VertexPositionColor(new Vector3(0, 0, 1f), Color.Blue),
             }, 0, 3);
 
-            this.lodTransition.Progress = progress;
-            this.lodTransition.Draw(Matrix.Identity, world3d);
+            // this.lodTransition.Progress = progress;
+            // this.lodTransition.Draw(Matrix.Identity, world3d);
+
+            foreach (var part in this.lodTransition.End.Mesh.MeshParts)
+            {
+                GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                GraphicsDevice.Indices = part.IndexBuffer;
+
+                noiseShader.Parameters["Progress"].SetValue(progress);
+                noiseShader.Parameters["Albedo"].SetValue(Color.Red.ToVector3());
+                noiseShader.Parameters["WorldViewProjection"].SetValue(Matrix.CreateTranslation(-0.5f, 0.2f, 0) * this.camera.View.Matrix * this.camera.Projection.Matrix);
+                noiseShader.CurrentTechnique.Passes[0].Apply();
+                GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            }
+
+            foreach (var part in this.lodTransition.End.Mesh.MeshParts)
+            {
+                GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                GraphicsDevice.Indices = part.IndexBuffer;
+
+                noiseShader.Parameters["Progress"].SetValue(progress);
+                noiseShader.Parameters["Albedo"].SetValue(Color.Yellow.ToVector3());
+                noiseShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
+                noiseShader.CurrentTechnique.Passes[0].Apply();
+                GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            }
 
             this.imGuiRenderer.BeforeLayout(gameTime);
 
