@@ -2,10 +2,10 @@
 using LodTransitions.ImGuiRendering;
 using LodTransitions.Rendering;
 using LodTransitions.Rendering.Cameras;
+using LodTransitions.Rendering.Lods;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using System;
 
 namespace LodTransitions
 {
@@ -33,7 +33,7 @@ namespace LodTransitions
             this.imGuiRenderer = new ImGuiRenderer(this);
             this.imGuiRenderer.RebuildFontAtlas();
 
-            camera = new PerspectiveLookAtTargetCamera(
+            this.camera = new PerspectiveLookAtTargetCamera(
                 ViewConfig: new LookAtTargetCameraViewConfig
                 {
                     LookAt = Vector3.Zero,
@@ -56,12 +56,15 @@ namespace LodTransitions
         private LodTransition lodTransition;
 
         private Effect noiseShader;
+        private Effect geomorphShader;
+        private GeomorphedMesh geomorphedMesh;
 
         protected override void LoadContent()
         {
             this.spriteBatch = new SpriteBatch(this.GraphicsDevice);
             this.axisShader = this.Content.Load<Effect>("axis_shader");
             this.noiseShader = this.Content.Load<Effect>("noise_shader");
+            this.geomorphShader = this.Content.Load<Effect>("geomorph_shader");
             var model = this.Content.Load<Model>("stanford-bunny");
             var lodModel = LodModel.CreateWithAutomaticDistances(model, 15f);
             this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel);
@@ -70,6 +73,8 @@ namespace LodTransitions
                 Start = lodModel.Lods[0],
                 End = lodModel.Lods[1],
             };
+
+            this.geomorphedMesh = MeshGeomorpher.Create(lodModel.Lods[0].Mesh, lodModel.Lods[1].Mesh);
         }
 
         protected override void Update(GameTime gameTime)
@@ -114,34 +119,45 @@ namespace LodTransitions
             // this.lodTransition.Progress = progress;
             // this.lodTransition.Draw(Matrix.Identity, world3d);
 
-            foreach (var part in this.lodTransition.End.Mesh.MeshParts)
+            // foreach (var part in this.lodTransition.End.Mesh.MeshParts)
+            // {
+            //     GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
+            //     GraphicsDevice.Indices = part.IndexBuffer;
+
+            //     noiseShader.Parameters["Progress"].SetValue(progress);
+            //     noiseShader.Parameters["Albedo"].SetValue(Color.Red.ToVector3());
+            //     noiseShader.Parameters["WorldViewProjection"].SetValue(Matrix.CreateTranslation(-0.5f, 0.2f, 0) * this.camera.View.Matrix * this.camera.Projection.Matrix);
+            //     noiseShader.CurrentTechnique.Passes[0].Apply();
+            //     GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            // }
+
+            // foreach (var part in this.lodTransition.End.Mesh.MeshParts)
+            // {
+            //     GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
+            //     GraphicsDevice.Indices = part.IndexBuffer;
+
+            //     noiseShader.Parameters["Progress"].SetValue(progress);
+            //     noiseShader.Parameters["Albedo"].SetValue(Color.Yellow.ToVector3());
+            //     noiseShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
+            //     noiseShader.CurrentTechnique.Passes[0].Apply();
+            //     GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            // }
+
+            foreach (var part in this.geomorphedMesh.Parts)
             {
-                GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
-                GraphicsDevice.Indices = part.IndexBuffer;
+                this.GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                this.GraphicsDevice.Indices = part.IndexBuffer;
 
-                noiseShader.Parameters["Progress"].SetValue(progress);
-                noiseShader.Parameters["Albedo"].SetValue(Color.Red.ToVector3());
-                noiseShader.Parameters["WorldViewProjection"].SetValue(Matrix.CreateTranslation(-0.5f, 0.2f, 0) * this.camera.View.Matrix * this.camera.Projection.Matrix);
-                noiseShader.CurrentTechnique.Passes[0].Apply();
-                GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
-            }
-
-            foreach (var part in this.lodTransition.End.Mesh.MeshParts)
-            {
-                GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
-                GraphicsDevice.Indices = part.IndexBuffer;
-
-                noiseShader.Parameters["Progress"].SetValue(progress);
-                noiseShader.Parameters["Albedo"].SetValue(Color.Yellow.ToVector3());
-                noiseShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
-                noiseShader.CurrentTechnique.Passes[0].Apply();
-                GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+                this.geomorphShader.Parameters["Progress"].SetValue(progress);
+                this.geomorphShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
+                this.geomorphShader.CurrentTechnique.Passes[0].Apply();
+                this.GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             }
 
             this.imGuiRenderer.BeforeLayout(gameTime);
 
             ImGui.Begin("Debug");
-            ImGui.SliderFloat("Progress", ref progress, 0, 1);
+            ImGui.SliderFloat("Progress", ref this.progress, 0, 1);
 
             ImGui.End();
 

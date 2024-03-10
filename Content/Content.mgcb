@@ -38,6 +38,12 @@
 /processorParam:TextureFormat=Compressed
 /build:castle.fbx
 
+#begin geomorph_shader.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:geomorph_shader.fx
+
 #begin noise_shader.fx
 /importer:EffectImporter
 /processor:EffectProcessor
