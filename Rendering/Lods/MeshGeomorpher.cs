@@ -23,15 +23,19 @@ namespace LodTransitions.Rendering.Lods
                 ModelMeshPart highDetailPart = highDetail.MeshParts[i];
                 ModelMeshPart lowDetailPart = lowDetail.MeshParts[i];
                 Vector3[] hdPositions = GetVertexPositions(highDetailPart);
+                Vector3[] hdNormals = GetVertexNormals(highDetailPart);
                 Vector3[] ldPositions = GetVertexPositions(lowDetailPart);
+                Vector3[] ldNormals = GetVertexNormals(lowDetailPart);
 
                 GeomorphVertex[] geomorphPositions = new GeomorphVertex[highDetailPart.NumVertices];
                 for (int j = 0; j < hdPositions.Length; j++)
                 {
-                    Vector3 closestLdPoint = FindClosestPoint(ldPositions, hdPositions[j]);
+                    int closestLdPointIndex = FindClosestPointIndex(ldPositions, hdPositions[j]);
 
                     geomorphPositions[j].StartPosition = hdPositions[j];
-                    geomorphPositions[j].EndPosition = closestLdPoint;
+                    geomorphPositions[j].StartNormal = hdNormals[j];
+                    geomorphPositions[j].EndPosition = ldPositions[closestLdPointIndex];
+                    geomorphPositions[j].EndNormal = ldNormals[closestLdPointIndex];
                 }
 
                 GraphicsDevice graphicsDevice = highDetailPart.VertexBuffer.GraphicsDevice;
@@ -56,39 +60,53 @@ namespace LodTransitions.Rendering.Lods
             return new GeomorphedMesh(geomorphedParts);
         }
 
-        private static Vector3[] GetVertexPositions(ModelMeshPart highDetailPart)
+        private static Vector3[] GetVertexPositions(ModelMeshPart meshPart)
         {
-            VertexDeclaration vertexInfo = highDetailPart.VertexBuffer.VertexDeclaration;
+            VertexDeclaration vertexInfo = meshPart.VertexBuffer.VertexDeclaration;
             VertexElement[] vertexAttributes = vertexInfo.GetVertexElements();
             VertexElement positionAttribute = vertexAttributes
                 .Cast<VertexElement?>()
                 .FirstOrDefault(a => a!.Value.VertexElementUsage == VertexElementUsage.Position)
                 ?? throw new ArgumentException("Vertex buffer is missing POSITION attribute.");
 
-            Vector3[] positions = new Vector3[highDetailPart.NumVertices];
-            highDetailPart.VertexBuffer.GetData(positionAttribute.Offset, positions, highDetailPart.VertexOffset, positions.Length, vertexInfo.VertexStride);
+            Vector3[] positions = new Vector3[meshPart.NumVertices];
+            meshPart.VertexBuffer.GetData(positionAttribute.Offset, positions, meshPart.VertexOffset, positions.Length, vertexInfo.VertexStride);
             return positions;
         }
 
-        private static Vector3 FindClosestPoint(Vector3[] array, Vector3 point)
+        private static Vector3[] GetVertexNormals(ModelMeshPart meshPart)
+        {
+            VertexDeclaration vertexInfo = meshPart.VertexBuffer.VertexDeclaration;
+            VertexElement[] vertexAttributes = vertexInfo.GetVertexElements();
+            VertexElement normalAttribute = vertexAttributes
+                .Cast<VertexElement?>()
+                .FirstOrDefault(a => a!.Value.VertexElementUsage == VertexElementUsage.Normal)
+                ?? throw new ArgumentException("Vertex buffer is missing NORMAL attribute.");
+
+            Vector3[] normals = new Vector3[meshPart.NumVertices];
+            meshPart.VertexBuffer.GetData(normalAttribute.Offset, normals, meshPart.VertexOffset, normals.Length, vertexInfo.VertexStride);
+            return normals;
+        }
+
+        private static int FindClosestPointIndex(Vector3[] array, Vector3 point)
         {
             if (array.Length == 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(array));
             }
-            Vector3 minPoint = array[0];
-            float minDistSqr = (minPoint - point).LengthSquared();
+            int minIndex = 0;
+            float minDistSqr = (array[minIndex] - point).LengthSquared();
             for (int i = 1; i < array.Length; i++)
             {
                 float distSqr = (array[i] - point).LengthSquared();
                 if (distSqr < minDistSqr)
                 {
-                    minPoint = array[i];
+                    minIndex = i;
                     minDistSqr = distSqr;
                 }
             }
 
-            return minPoint;
+            return minIndex;
         }
 
         private static uint[] CopyIndexBufferAsUnsigned32(IndexBuffer indexBuffer, int startIndex, int count, int baseVertex)
@@ -157,7 +175,9 @@ namespace LodTransitions.Rendering.Lods
     public struct GeomorphVertex : IVertexType
     {
         public Vector3 StartPosition;
+        public Vector3 StartNormal;
         public Vector3 EndPosition;
+        public Vector3 EndNormal;
 
         public static VertexDeclaration VertexDeclaration;
 
@@ -167,14 +187,18 @@ namespace LodTransitions.Rendering.Lods
         {
             VertexDeclaration = new VertexDeclaration(
                 new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),
-                new VertexElement(12, VertexElementFormat.Vector3, VertexElementUsage.Position, 1)
+                new VertexElement(12, VertexElementFormat.Vector3, VertexElementUsage.Normal, 0),
+                new VertexElement(24, VertexElementFormat.Vector3, VertexElementUsage.Position, 1),
+                new VertexElement(36, VertexElementFormat.Vector3, VertexElementUsage.Normal, 1)
             );
         }
 
-        public GeomorphVertex(Vector3 startPosition, Vector3 endPosition)
+        public GeomorphVertex(Vector3 startPosition, Vector3 startNormal, Vector3 endPosition, Vector3 endNormal)
         {
-            this.StartPosition = startPosition;
-            this.EndPosition = endPosition;
+            StartPosition = startPosition;
+            StartNormal = startNormal;
+            EndPosition = endPosition;
+            EndNormal = endNormal;
         }
     }
 }

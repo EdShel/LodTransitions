@@ -42,16 +42,14 @@ float DitherPattern(float2 coord)
 
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
-	float3 lightDirection = normalize(float3(0, 1.0, 0)); // Simulated light direction
+	float3 lightDirection = normalize(float3(0, 1.0, 0));
 
-	float progress = saturate(Progress); // Ensure progress is in the range [0, 1]
-	float dither = DitherPattern(input.TexCoord); // Use dithering pattern based on vertex position
-	clip(dither - progress);
+	float dither = DitherPattern(input.TexCoord);
+	clip(dither - Progress);
 
+	float lightIntensity = max(dot(input.Normal, lightDirection), 0.0);
 
-	float lightIntensity = max(dot(input.Normal, lightDirection), 0.0); // Calculate cosine angle between normal and light direction
-
-	return float4(Albedo * lightIntensity, 1.0); // Output color based on final light intensity
+	return float4(Albedo * lightIntensity, 1.0);
 
 }
 
