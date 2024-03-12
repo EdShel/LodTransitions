@@ -53,7 +53,6 @@ namespace LodTransitions
         }
 
         private LodModelRenderer lodModelRenderer = null!;
-        private LodTransition lodTransition;
 
         private Effect noiseShader;
         private Effect geomorphShader;
@@ -66,15 +65,9 @@ namespace LodTransitions
             this.noiseShader = this.Content.Load<Effect>("noise_shader");
             this.geomorphShader = this.Content.Load<Effect>("geomorph_shader");
             var model = this.Content.Load<Model>("stanford-bunny");
-            var lodModel = LodModel.CreateWithAutomaticDistances(model, 15f);
-            this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel);
-            this.lodTransition = new LodTransition
-            {
-                Start = lodModel.Lods[0],
-                End = lodModel.Lods[1],
-            };
-
-            this.geomorphedMesh = MeshGeomorpher.Create(lodModel.Lods[0].Mesh, lodModel.Lods[1].Mesh);
+            var lodModel = LodModel.CreateWithAutomaticDistances(model, 8f);
+            var transition = new GeomorphTransition(this.geomorphShader);
+            this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel, transition);
         }
 
         protected override void Update(GameTime gameTime)
@@ -100,7 +93,7 @@ namespace LodTransitions
                 Graphics = this.GraphicsDevice
             };
 
-            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * 1.5f;
+            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * progress;
 
             this.axisShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
             this.axisShader.CurrentTechnique.Passes[0].Apply();
@@ -115,6 +108,8 @@ namespace LodTransitions
                 new VertexPositionColor(new Vector3(0, 0, 0), Color.Blue),
                 new VertexPositionColor(new Vector3(0, 0, 1f), Color.Blue),
             }, 0, 3);
+
+            this.lodModelRenderer.Draw(world3d);
 
             // this.lodTransition.Progress = progress;
             // this.lodTransition.Draw(Matrix.Identity, world3d);
@@ -143,21 +138,21 @@ namespace LodTransitions
             //     GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             // }
 
-            foreach (var part in this.geomorphedMesh.Parts)
-            {
-                this.GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
-                this.GraphicsDevice.Indices = part.IndexBuffer;
+            // foreach (var part in this.geomorphedMesh.Parts)
+            // {
+            //     this.GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
+            //     this.GraphicsDevice.Indices = part.IndexBuffer;
 
-                this.geomorphShader.Parameters["Progress"].SetValue(progress);
-                this.geomorphShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
-                this.geomorphShader.CurrentTechnique.Passes[0].Apply();
-                this.GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
-            }
+            //     this.geomorphShader.Parameters["Progress"].SetValue(progress);
+            //     this.geomorphShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
+            //     this.geomorphShader.CurrentTechnique.Passes[0].Apply();
+            //     this.GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            // }
 
             this.imGuiRenderer.BeforeLayout(gameTime);
 
             ImGui.Begin("Debug");
-            ImGui.SliderFloat("Progress", ref this.progress, 0, 1);
+            ImGui.SliderFloat("Progress", ref this.progress, 0, 10);
 
             ImGui.End();
 
