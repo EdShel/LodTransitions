@@ -6,6 +6,7 @@ using LodTransitions.Rendering.Lods;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace LodTransitions
 {
@@ -54,20 +55,19 @@ namespace LodTransitions
 
         private LodModelRenderer lodModelRenderer = null!;
 
-        private Effect noiseShader;
-        private Effect geomorphShader;
         private GeomorphedMesh geomorphedMesh;
 
         protected override void LoadContent()
         {
             this.spriteBatch = new SpriteBatch(this.GraphicsDevice);
             this.axisShader = this.Content.Load<Effect>("axis_shader");
-            this.noiseShader = this.Content.Load<Effect>("noise_shader");
-            this.geomorphShader = this.Content.Load<Effect>("geomorph_shader");
+            var mainShader = this.Content.Load<Effect>("main_shader");
+            var mainMaterial = new MainMaterial(mainShader);
+            var transition = new GeomorphTransition(mainMaterial);
+
             var model = this.Content.Load<Model>("stanford-bunny");
             var lodModel = LodModel.CreateWithAutomaticDistances(model, 8f);
-            var transition = new GeomorphTransition(this.geomorphShader);
-            this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel, transition);
+            this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel, transition, mainMaterial);
         }
 
         protected override void Update(GameTime gameTime)
@@ -93,7 +93,7 @@ namespace LodTransitions
                 Graphics = this.GraphicsDevice
             };
 
-            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * progress;
+            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * Math.Max(0.0001f, progress);
 
             this.axisShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
             this.axisShader.CurrentTechnique.Passes[0].Apply();

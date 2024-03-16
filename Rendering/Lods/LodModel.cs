@@ -10,6 +10,7 @@ namespace LodTransitions.Rendering.Lods
     public class LodModelRenderer
     {
         private float transitionThreshold = 0.4f;
+        private MainMaterial mainMaterial;
 
         public Vector3 Position { get; set; }
         public LodModel LodModel { get; private set; }
@@ -27,17 +28,17 @@ namespace LodTransitions.Rendering.Lods
         }
         public ILodTransition Transition { get; set; }
 
-        public LodModelRenderer(Vector3 position, LodModel lodModel, ILodTransition transition)
+        public LodModelRenderer(Vector3 position, LodModel lodModel, ILodTransition transition, MainMaterial mainMaterial)
         {
             this.Position = position;
             this.LodModel = lodModel;
             this.Transition = transition;
+            this.mainMaterial = mainMaterial;
         }
 
         public void Draw(World3D world)
         {
             float distanceToCameraSqr = (this.Position - world.ObserverPosition).LengthSquared();
-            // LodLevel currentLevel = this.LodModel.FindLodLevel(distanceToCameraSqr);
 
             for (int i = 0; i < this.LodModel.Lods.Count - 1; i++)
             {
@@ -65,15 +66,16 @@ namespace LodTransitions.Rendering.Lods
 
         private void DrawSimpleLod(World3D world, LodLevel lod)
         {
-            foreach (BasicEffect meshEffect in lod.Mesh.Effects)
+            var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
+            foreach (ModelMeshPart part in lod.Mesh.MeshParts)
             {
-                meshEffect.EnableDefaultLighting();
-                meshEffect.PreferPerPixelLighting = true;
-                meshEffect.World = Matrix.CreateTranslation(this.Position);
-                meshEffect.View = world.Camera.View.Matrix;
-                meshEffect.Projection = world.Camera.Projection.Matrix;
+                graphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                graphicsDevice.Indices = part.IndexBuffer;
+
+                this.mainMaterial.WorldViewProjection = Matrix.CreateTranslation(this.Position) * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
+                this.mainMaterial.MainPass.Apply();
+                graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             }
-            lod.Mesh.Draw();
         }
     }
 
@@ -141,11 +143,11 @@ namespace LodTransitions.Rendering.Lods
     {
         private DisposableLruCache<(long, long), GeomorphedMesh> geomorphCache = new(maxCapacity: 10);
 
-        private Effect geomorphShader;
+        private MainMaterial mainMaterial;
 
-        public GeomorphTransition(Effect geomorphShader)
+        public GeomorphTransition(MainMaterial mainMaterial)
         {
-            this.geomorphShader = geomorphShader;
+            this.mainMaterial = mainMaterial;
         }
 
         public void Draw(float progress, LodLevel start, LodLevel end, Matrix transform, World3D world)
@@ -153,15 +155,15 @@ namespace LodTransitions.Rendering.Lods
             var cacheEntry = (start.Id, end.Id);
             GeomorphedMesh geomorphedMesh = this.geomorphCache.GetOrCreate(cacheEntry, () => MeshGeomorpher.Create(start.Mesh, end.Mesh));
 
-            var graphicsDevice = this.geomorphShader.GraphicsDevice;
+            var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
             foreach (var part in geomorphedMesh.Parts)
             {
                 graphicsDevice.SetVertexBuffer(part.VertexBuffer);
                 graphicsDevice.Indices = part.IndexBuffer;
 
-                this.geomorphShader.Parameters["Progress"].SetValue(progress);
-                this.geomorphShader.Parameters["WorldViewProjection"].SetValue(world.Camera.View.Matrix * world.Camera.Projection.Matrix);
-                this.geomorphShader.CurrentTechnique.Passes[0].Apply();
+                this.mainMaterial.Progress = progress;
+                this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
+                this.mainMaterial.GeomorphPass.Apply();
                 graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             }
         }

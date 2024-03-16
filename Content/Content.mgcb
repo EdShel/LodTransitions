@@ -38,17 +38,11 @@
 /processorParam:TextureFormat=Compressed
 /build:castle.fbx
 
-#begin geomorph_shader.fx
+#begin main_shader.fx
 /importer:EffectImporter
 /processor:EffectProcessor
 /processorParam:DebugMode=Auto
-/build:geomorph_shader.fx
-
-#begin noise_shader.fx
-/importer:EffectImporter
-/processor:EffectProcessor
-/processorParam:DebugMode=Auto
-/build:noise_shader.fx
+/build:main_shader.fx
 
 #begin stanford-bunny.fbx
 /importer:FbxImporter

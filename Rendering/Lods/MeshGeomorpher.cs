@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace LodTransitions.Rendering.Lods
 {
@@ -27,7 +28,8 @@ namespace LodTransitions.Rendering.Lods
                 Vector3[] ldNormals = GetVertexNormals(lowDetailPart);
 
                 GeomorphVertex[] geomorphPositions = new GeomorphVertex[highDetailPart.NumVertices];
-                for (int j = 0; j < hdPositions.Length; j++)
+
+                Parallel.For(0, hdPositions.Length, j =>
                 {
                     int closestLdPointIndex = FindClosestPointIndex(ldPositions, hdPositions[j]);
 
@@ -35,7 +37,7 @@ namespace LodTransitions.Rendering.Lods
                     geomorphPositions[j].StartNormal = hdNormals[j];
                     geomorphPositions[j].EndPosition = ldPositions[closestLdPointIndex];
                     geomorphPositions[j].EndNormal = ldNormals[closestLdPointIndex];
-                }
+                });
 
                 GraphicsDevice graphicsDevice = highDetailPart.VertexBuffer.GraphicsDevice;
                 var geomorphVertexBuffer = new VertexBuffer(graphicsDevice, GeomorphVertex.VertexDeclaration, geomorphPositions.Length, BufferUsage.WriteOnly);
