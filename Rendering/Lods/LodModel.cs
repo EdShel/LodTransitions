@@ -7,7 +7,12 @@ using System.Text.RegularExpressions;
 
 namespace LodTransitions.Rendering.Lods
 {
-    public class LodModelRenderer
+    public interface IRenderable
+    {
+        void Draw(World3D world);
+    }
+
+    public class LodModelRenderer : IRenderable
     {
         private float transitionThreshold = 0.4f;
         private MainMaterial mainMaterial;
@@ -89,55 +94,79 @@ namespace LodTransitions.Rendering.Lods
         void Draw(float progress, LodLevel start, LodLevel end, Matrix transform, World3D world);
     }
 
+    public class AlphaTransition : ILodTransition
+    {
+        private readonly MainMaterial mainMaterial;
 
-    // public class LodTransition : ILodTransition
-    // {
-    //     public LodLevel Start { get; set; }
-    //     public LodLevel End { get; set; }
-    //     public float Progress { get; set; }
+        public AlphaTransition(MainMaterial mainMaterial)
+        {
+            this.mainMaterial = mainMaterial;
+        }
 
-    //     public LodTransition(LodLevel start, LodLevel end, float progress = 0.0f)
-    //     {
-    //         Start = start;
-    //         End = end;
-    //         Progress = progress;
-    //     }
+        public void Draw(float progress, LodLevel start, LodLevel end, Matrix transform, World3D world)
+        {
+            var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
+            var oldBlendState = graphicsDevice.BlendState;
+            var oldDepthStencilState = graphicsDevice.DepthStencilState;
+            graphicsDevice.BlendState = BlendState.AlphaBlend;
+            graphicsDevice.DepthStencilState = DepthStencilState.None;
 
-    //     public void Draw(Matrix transform, World3D world)
-    //     {
-    //         BlendState oldBlend = world.Graphics.BlendState;
-    //         DepthStencilState oldDepth = world.Graphics.DepthStencilState;
-    //         world.Graphics.BlendState = BlendState.AlphaBlend;
-    //         world.Graphics.DepthStencilState = DepthStencilState.None;
+            this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
 
-    //         foreach (BasicEffect meshEffect in this.Start.Mesh.Effects)
-    //         {
-    //             meshEffect.EnableDefaultLighting();
-    //             meshEffect.PreferPerPixelLighting = true;
-    //             meshEffect.World = transform;
-    //             meshEffect.View = world.Camera.View.Matrix;
-    //             meshEffect.Projection = world.Camera.Projection.Matrix;
+            foreach (var part in start.Mesh.MeshParts)
+            {
+                this.mainMaterial.Progress = progress;
+                this.mainMaterial.AlphaPass.Apply();
+                graphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                graphicsDevice.Indices = part.IndexBuffer;
+                graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            }
+            foreach (var part in end.Mesh.MeshParts)
+            {
+                this.mainMaterial.Progress = 1f - progress;
+                this.mainMaterial.AlphaPass.Apply();
+                graphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                graphicsDevice.Indices = part.IndexBuffer;
+                graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            }
 
-    //             meshEffect.Alpha = Math.Clamp(1f - this.Progress, 0f, 1f);
-    //         }
-    //         this.Start.Mesh.Draw();
+            graphicsDevice.BlendState = oldBlendState;
+            graphicsDevice.DepthStencilState = oldDepthStencilState;
+        }
+    }
 
-    //         foreach (BasicEffect meshEffect in this.End.Mesh.Effects)
-    //         {
-    //             meshEffect.EnableDefaultLighting();
-    //             meshEffect.PreferPerPixelLighting = true;
-    //             meshEffect.World = transform;
-    //             meshEffect.View = world.Camera.View.Matrix;
-    //             meshEffect.Projection = world.Camera.Projection.Matrix;
+    public class NoiseTransition : ILodTransition
+    {
+        private readonly MainMaterial mainMaterial;
 
-    //             meshEffect.Alpha = Math.Clamp(this.Progress, 0f, 1f);
-    //         }
-    //         this.End.Mesh.Draw();
+        public NoiseTransition(MainMaterial mainMaterial)
+        {
+            this.mainMaterial = mainMaterial;
+        }
 
-    //         world.Graphics.BlendState = oldBlend;
-    //         world.Graphics.DepthStencilState = oldDepth;
-    //     }
-    // }
+        public void Draw(float progress, LodLevel start, LodLevel end, Matrix transform, World3D world)
+        {
+            var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
+            this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
+
+            foreach (var part in start.Mesh.MeshParts)
+            {
+                this.mainMaterial.Progress = 1f - progress;
+                this.mainMaterial.NoisePass.Apply();
+                graphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                graphicsDevice.Indices = part.IndexBuffer;
+                graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            }
+            foreach (var part in end.Mesh.MeshParts)
+            {
+                this.mainMaterial.Progress = progress;
+                this.mainMaterial.NoisePass.Apply();
+                graphicsDevice.SetVertexBuffer(part.VertexBuffer);
+                graphicsDevice.Indices = part.IndexBuffer;
+                graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
+            }
+        }
+    }
 
     public class GeomorphTransition : ILodTransition
     {

@@ -9,7 +9,7 @@ namespace LodTransitions.Rendering.Lods
 {
     public class MeshGeomorpher
     {
-        public static GeomorphedMesh Create(ModelMesh lowDetail, ModelMesh highDetail)
+        public static GeomorphedMesh Create(ModelMesh lowDetail, ModelMesh highDetail, float normalContribution = 0.001f)
         {
             if (lowDetail.MeshParts.Count != highDetail.MeshParts.Count)
             {
@@ -31,7 +31,7 @@ namespace LodTransitions.Rendering.Lods
 
                 Parallel.For(0, hdPositions.Length, j =>
                 {
-                    int closestLdPointIndex = FindClosestPointIndex(ldPositions, hdPositions[j]);
+                    int closestLdPointIndex = FindClosestPointIndex(ldPositions, ldNormals, hdPositions[j], hdNormals[j], normalContribution);
 
                     geomorphPositions[j].StartPosition = hdPositions[j];
                     geomorphPositions[j].StartNormal = hdNormals[j];
@@ -89,17 +89,28 @@ namespace LodTransitions.Rendering.Lods
             return normals;
         }
 
-        private static int FindClosestPointIndex(Vector3[] array, Vector3 point)
+        private static int FindClosestPointIndex(Vector3[] positions, Vector3[] normals, Vector3 point, Vector3 normal, float normalContribution)
         {
-            if (array.Length == 0)
+            if (positions.Length == 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(array));
+                throw new ArgumentOutOfRangeException(nameof(positions));
             }
-            int minIndex = 0;
-            float minDistSqr = (array[minIndex] - point).LengthSquared();
-            for (int i = 1; i < array.Length; i++)
+            if (normals.Length == 0)
             {
-                float distSqr = (array[i] - point).LengthSquared();
+                throw new ArgumentOutOfRangeException(nameof(positions));
+            }
+            if (positions.Length != normals.Length)
+            {
+                throw new ArgumentException("Invalid arrays sizes.");
+            }
+
+            Vector3 firstPointNormal = normals[0];
+
+            int minIndex = 0;
+            float minDistSqr = VertexDistanceSqr(point, normal, positions[minIndex], normals[minIndex], normalContribution);
+            for (int i = 1; i < positions.Length; i++)
+            {
+                float distSqr = VertexDistanceSqr(point, normal, positions[i], normals[i], normalContribution);
                 if (distSqr < minDistSqr)
                 {
                     minIndex = i;
@@ -108,6 +119,23 @@ namespace LodTransitions.Rendering.Lods
             }
 
             return minIndex;
+        }
+
+        private static float VertexDistanceSqr(Vector3 pos1, Vector3 norm1, Vector3 pos2, Vector3 norm2, float normalContribution)
+        {
+            float px = pos1.X - pos2.X;
+            float py = pos1.Y - pos2.Y;
+            float pz = pos1.Z - pos2.Z;
+            float nx = normalContribution * (norm1.X - norm2.X);
+            float ny = normalContribution * (norm1.Y - norm2.Y);
+            float nz = normalContribution * (norm1.Z - norm2.Z);
+
+            return px * px
+                + py * py
+                + pz * pz
+                + nx * nx
+                + ny * ny
+                + nz * nz;
         }
 
         private static uint[] CopyIndexBufferAsUnsigned32(IndexBuffer indexBuffer, int startIndex, int count, int baseVertex)

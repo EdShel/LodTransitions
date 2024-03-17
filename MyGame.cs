@@ -18,6 +18,9 @@ namespace LodTransitions
         private ImGuiRenderer imGuiRenderer;
         private float rotation = 0f;
 
+        private int previewWidth = 200;
+        private int previewHeight = 200;
+
         public MyGame()
         {
             this.graphics = new GraphicsDeviceManager(this);
@@ -27,6 +30,7 @@ namespace LodTransitions
 
         private Effect axisShader;
         private PerspectiveLookAtTargetCamera camera;
+        private PerspectiveLookAtTargetCamera previewCamera;
 
         protected override void Initialize()
         {
@@ -50,12 +54,28 @@ namespace LodTransitions
                 }
             );
 
+            this.previewCamera = new PerspectiveLookAtTargetCamera(
+                ViewConfig: new LookAtTargetCameraViewConfig
+                {
+                    LookAt = Vector3.Zero,
+                    Position = new Vector3(0.75f, 0, 0),
+                    Up = Vector3.Up,
+                },
+                ProjectionConfig: new PerspectiveCameraProjectionConfig
+                {
+                    Fov = MathHelper.PiOver2,
+                    NearPlane = 0.001f,
+                    FarPlane = 200f,
+                    AspectRatio = ((float)this.previewWidth) / this.previewHeight,
+                }
+            );
+
             base.Initialize();
         }
 
-        private LodModelRenderer lodModelRenderer = null!;
+        private Scene scene;
 
-        private GeomorphedMesh geomorphedMesh;
+        private CloseUpPreviewWindow? closeUpPreviewWindow;
 
         protected override void LoadContent()
         {
@@ -64,10 +84,16 @@ namespace LodTransitions
             var mainShader = this.Content.Load<Effect>("main_shader");
             var mainMaterial = new MainMaterial(mainShader);
             var transition = new GeomorphTransition(mainMaterial);
+            //var transition = new AlphaTransition(mainMaterial);
+            //var transition = new NoiseTransition(mainMaterial);
 
+            //var model = this.Content.Load<Model>("debug_tri");
             var model = this.Content.Load<Model>("stanford-bunny");
             var lodModel = LodModel.CreateWithAutomaticDistances(model, 8f);
-            this.lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel, transition, mainMaterial);
+            var lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel, transition, mainMaterial);
+
+            this.scene = new Scene();
+            this.scene.AddInstance(lodModelRenderer);
         }
 
         protected override void Update(GameTime gameTime)
@@ -82,18 +108,26 @@ namespace LodTransitions
 
         private float progress;
 
+        private bool drawMetrics;
         protected override void Draw(GameTime gameTime)
         {
-            this.GraphicsDevice.Clear(Color.CornflowerBlue);
+            this.imGuiRenderer.BeforeLayout(gameTime);
 
             var world3d = new World3D
             {
-                Camera = this.camera,
                 Dt = (float)gameTime.ElapsedGameTime.TotalSeconds,
-                Graphics = this.GraphicsDevice
+                Graphics = this.GraphicsDevice,
+                Camera = this.camera,
+            };
+            var previewWorld3d = new World3D
+            {
+                Dt = (float)gameTime.ElapsedGameTime.TotalSeconds,
+                Graphics = this.GraphicsDevice,
+                Camera = this.previewCamera,
+                DebugObserverPosition = this.camera.View.Position
             };
 
-            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * Math.Max(0.0001f, progress);
+            this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * Math.Max(0.0001f, this.progress);
 
             this.axisShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
             this.axisShader.CurrentTechnique.Passes[0].Apply();
@@ -109,50 +143,44 @@ namespace LodTransitions
                 new VertexPositionColor(new Vector3(0, 0, 1f), Color.Blue),
             }, 0, 3);
 
-            this.lodModelRenderer.Draw(world3d);
+            if (this.closeUpPreviewWindow != null)
+            {
+                this.closeUpPreviewWindow.RedrawImage(this.scene, previewWorld3d);
+            }
+            this.scene.Draw(world3d);
 
-            // this.lodTransition.Progress = progress;
-            // this.lodTransition.Draw(Matrix.Identity, world3d);
-
-            // foreach (var part in this.lodTransition.End.Mesh.MeshParts)
-            // {
-            //     GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
-            //     GraphicsDevice.Indices = part.IndexBuffer;
-
-            //     noiseShader.Parameters["Progress"].SetValue(progress);
-            //     noiseShader.Parameters["Albedo"].SetValue(Color.Red.ToVector3());
-            //     noiseShader.Parameters["WorldViewProjection"].SetValue(Matrix.CreateTranslation(-0.5f, 0.2f, 0) * this.camera.View.Matrix * this.camera.Projection.Matrix);
-            //     noiseShader.CurrentTechnique.Passes[0].Apply();
-            //     GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
-            // }
-
-            // foreach (var part in this.lodTransition.End.Mesh.MeshParts)
-            // {
-            //     GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
-            //     GraphicsDevice.Indices = part.IndexBuffer;
-
-            //     noiseShader.Parameters["Progress"].SetValue(progress);
-            //     noiseShader.Parameters["Albedo"].SetValue(Color.Yellow.ToVector3());
-            //     noiseShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
-            //     noiseShader.CurrentTechnique.Passes[0].Apply();
-            //     GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
-            // }
-
-            // foreach (var part in this.geomorphedMesh.Parts)
-            // {
-            //     this.GraphicsDevice.SetVertexBuffer(part.VertexBuffer);
-            //     this.GraphicsDevice.Indices = part.IndexBuffer;
-
-            //     this.geomorphShader.Parameters["Progress"].SetValue(progress);
-            //     this.geomorphShader.Parameters["WorldViewProjection"].SetValue(this.camera.View.Matrix * this.camera.Projection.Matrix);
-            //     this.geomorphShader.CurrentTechnique.Passes[0].Apply();
-            //     this.GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
-            // }
-
-            this.imGuiRenderer.BeforeLayout(gameTime);
 
             ImGui.Begin("Debug");
+
+            ImGui.Checkbox("GPU Metrics", ref this.drawMetrics);
+
+            if (this.drawMetrics)
+            {
+                ImGui.Text($"{nameof(this.GraphicsDevice.Metrics.DrawCount)}: {this.GraphicsDevice.Metrics.DrawCount}");
+                ImGui.Text($"{nameof(this.GraphicsDevice.Metrics.ClearCount)}: {this.GraphicsDevice.Metrics.ClearCount}");
+                ImGui.Text($"{nameof(this.GraphicsDevice.Metrics.PrimitiveCount)}: {this.GraphicsDevice.Metrics.PrimitiveCount}");
+            }
+
             ImGui.SliderFloat("Progress", ref this.progress, 0, 10);
+
+            bool previewEnabled = this.closeUpPreviewWindow != null;
+            if (ImGui.Checkbox("Close up preview", ref previewEnabled))
+            {
+                if (previewEnabled)
+                {
+                    this.closeUpPreviewWindow = new CloseUpPreviewWindow(this.imGuiRenderer, this.GraphicsDevice, this.previewWidth, this.previewHeight);
+                }
+                else if (this.closeUpPreviewWindow != null)
+                {
+                    this.closeUpPreviewWindow.Dispose();
+                    this.closeUpPreviewWindow = null;
+                }
+            }
+
+            if (this.closeUpPreviewWindow != null)
+            {
+                this.closeUpPreviewWindow.DrawImguiImage();
+            }
 
             ImGui.End();
 
