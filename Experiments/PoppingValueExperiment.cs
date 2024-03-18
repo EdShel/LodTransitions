@@ -1,14 +1,124 @@
+using ImGuiNET;
 using LodTransitions.Rendering;
 using LodTransitions.Rendering.Cameras;
 using LodTransitions.Rendering.Lods;
+using LodTransitions.Utilities;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace LodTransitions.Experiments
 {
     public class PoppingValueExperiment : IDisposable
+    {
+        private PoppingValueExperimentStage[] experiments;
+        private int currentExperiment;
+
+        private FpsCounter fpsCounter = new FpsCounter();
+
+        private List<List<float>> results = new List<List<float>>();
+
+        private GraphicsDevice graphicsDevice;
+
+        public PoppingValueExperiment(MyGame game)
+        {
+            this.graphicsDevice = game.GraphicsDevice;
+            this.experiments = new[] {
+                new PoppingValueExperimentStage(game, new PoppingValueExperimentConfig
+                {
+                    Transition = LodTransitionKind.Alpha,
+                    Model = "stanford-bunny",
+                    ImageWidth = this.graphicsDevice.PresentationParameters.BackBufferWidth,
+                    ImageHeight = this.graphicsDevice.PresentationParameters.BackBufferHeight,
+                    StartDistance = 0.5f,
+                    FinishDistance = 10f,
+                    LowestLodDistance = 9f,
+                    SnapshotIterations = 1000,
+                    OutputToBackBuffer = true,
+                }),
+                new PoppingValueExperimentStage(game, new PoppingValueExperimentConfig
+                {
+                    Transition = LodTransitionKind.Noise,
+                    Model = "stanford-bunny",
+                    ImageWidth = this.graphicsDevice.PresentationParameters.BackBufferWidth,
+                    ImageHeight = this.graphicsDevice.PresentationParameters.BackBufferHeight,
+                    StartDistance = 0.5f,
+                    FinishDistance = 10f,
+                    LowestLodDistance = 9f,
+                    SnapshotIterations = 1000,
+                    OutputToBackBuffer = true,
+                }),
+                new PoppingValueExperimentStage(game, new PoppingValueExperimentConfig
+                {
+                    Transition = LodTransitionKind.Geomorphing,
+                    Model = "stanford-bunny",
+                    ImageWidth = this.graphicsDevice.PresentationParameters.BackBufferWidth,
+                    ImageHeight = this.graphicsDevice.PresentationParameters.BackBufferHeight,
+                    StartDistance = 0.5f,
+                    FinishDistance = 10f,
+                    LowestLodDistance = 9f,
+                    SnapshotIterations = 1000,
+                    OutputToBackBuffer = true,
+                })
+            };
+        }
+
+        public void Draw(GameTime gameTime)
+        {
+            if (this.currentExperiment < this.experiments.Length)
+            {
+                var experiment = this.experiments[this.currentExperiment];
+                experiment.Draw(gameTime);
+                this.fpsCounter.Tick(gameTime.ElapsedGameTime);
+
+                if (experiment.IsFinished)
+                {
+                    this.results.Add(experiment.Results);
+                    this.currentExperiment++;
+
+                    if (this.currentExperiment >= this.experiments.Length)
+                    {
+                        var sb = new StringBuilder("Alpha,Noise,Geomorphing");
+                        int els = this.results[0].Count;
+                        for (int i = 0; i < els; i++)
+                        {
+                            for (int j = 0; j < this.results.Count; j++)
+                            {
+                                if (j != 0)
+                                {
+                                    sb.Append(',');
+                                }
+                                sb.Append(this.results[j][i].ToStringWithDot());
+                            }
+                            sb.AppendLine();
+                        }
+                        System.IO.File.WriteAllText("./result.csv", sb.ToString());
+                    }
+                }
+            }
+
+            ImGui.Begin("Debug");
+
+            ImGui.Text($"FPS: {this.fpsCounter.Fps}");
+            ImGui.Text($"{nameof(this.graphicsDevice.Metrics.DrawCount)}: {this.graphicsDevice.Metrics.DrawCount}");
+            ImGui.Text($"{nameof(this.graphicsDevice.Metrics.ClearCount)}: {this.graphicsDevice.Metrics.ClearCount}");
+            ImGui.Text($"{nameof(this.graphicsDevice.Metrics.PrimitiveCount)}: {this.graphicsDevice.Metrics.PrimitiveCount}");
+
+            ImGui.End();
+        }
+
+        public void Dispose()
+        {
+            foreach (var experiment in this.experiments)
+            {
+                experiment.Dispose();
+            }
+        }
+    }
+
+    public class PoppingValueExperimentStage : IDisposable
     {
         private PoppingValueExperimentConfig config;
         private Scene scene;
@@ -26,7 +136,7 @@ namespace LodTransitions.Experiments
         public List<float> Results = new List<float>();
         public bool IsFinished { get; private set; }
 
-        public PoppingValueExperiment(MyGame game, PoppingValueExperimentConfig config)
+        public PoppingValueExperimentStage(MyGame game, PoppingValueExperimentConfig config)
         {
             this.config = config;
 
@@ -79,7 +189,7 @@ namespace LodTransitions.Experiments
 
         public void Draw(GameTime gameTime)
         {
-            if (IsFinished)
+            if (this.IsFinished)
             {
                 throw new InvalidOperationException("The experiment is already finished.");
             }
