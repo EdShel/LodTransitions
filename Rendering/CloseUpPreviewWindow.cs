@@ -15,7 +15,7 @@ namespace LodTransitions.Rendering
         public CloseUpPreviewWindow(ImGuiRenderer imGuiRenderer, GraphicsDevice device, int width, int height)
         {
             this.imGuiRenderer = imGuiRenderer;
-            this.renderTarget = new RenderTarget2D(device, width, height);
+            this.renderTarget = new RenderTarget2D(device, width, height, false, SurfaceFormat.Color, DepthFormat.Depth24);
 
             this.renderTargetImguiHandle = this.imGuiRenderer.BindTexture(this.renderTarget);
         }

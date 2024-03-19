@@ -1,12 +1,7 @@
-﻿using System.Collections.Generic;
-using System.Globalization;
-using System.Text;
-using ImGuiNET;
-using LodTransitions.Experiments;
+﻿using LodTransitions.Experiments;
 using LodTransitions.ImGuiRendering;
 using LodTransitions.Rendering;
 using LodTransitions.Rendering.Cameras;
-using LodTransitions.Rendering.Lods;
 using LodTransitions.Utilities;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -16,10 +11,10 @@ namespace LodTransitions
 {
     public class MyGame : Game
     {
-        private GraphicsDeviceManager graphics;
+        public ImGuiRenderer ImGuiRenderer;
         private SpriteBatch spriteBatch;
+        public GraphicsDeviceManager GraphicsDeviceManager;
 
-        private ImGuiRenderer imGuiRenderer;
         private float rotation = 0f;
 
         private int previewWidth = 200;
@@ -29,12 +24,12 @@ namespace LodTransitions
 
         public MyGame()
         {
-            this.graphics = new GraphicsDeviceManager(this);
+            this.GraphicsDeviceManager = new GraphicsDeviceManager(this);
             this.Content.RootDirectory = "Content";
             this.IsMouseVisible = true;
 
-            this.graphics.SynchronizeWithVerticalRetrace = false;
-            this.IsFixedTimeStep = false;
+            //this.GraphicsDeviceManager.SynchronizeWithVerticalRetrace = false;
+            //this.IsFixedTimeStep = false;
         }
 
         private Effect axisShader;
@@ -42,14 +37,15 @@ namespace LodTransitions
         private PerspectiveLookAtTargetCamera previewCamera;
 
 
-        private PoppingValueExperiment experiment;
+        private BaseRenderingExperiment experiment;
 
         protected override void Initialize()
         {
-            this.imGuiRenderer = new ImGuiRenderer(this);
-            this.imGuiRenderer.RebuildFontAtlas();
+            this.ImGuiRenderer = new ImGuiRenderer(this);
+            this.ImGuiRenderer.RebuildFontAtlas();
 
-            experiment = new PoppingValueExperiment(this);
+            // experiment = new PoppingValueExperiment(this);
+            this.experiment = new DebugExperiment(this);
 
             base.Initialize();
         }
@@ -94,7 +90,7 @@ namespace LodTransitions
 
         protected override void Draw(GameTime gameTime)
         {
-            this.imGuiRenderer.BeforeLayout(gameTime);
+            this.ImGuiRenderer.BeforeLayout(gameTime);
 
 
             // ImGui.Begin("Debug");
@@ -127,9 +123,9 @@ namespace LodTransitions
 
             // ImGui.End();
 
-            experiment.Draw(gameTime);
+            this.experiment.Draw(gameTime);
 
-            this.imGuiRenderer.AfterLayout();
+            this.ImGuiRenderer.AfterLayout();
 
             this.GraphicsDevice.DepthStencilState = DepthStencilState.Default;
 

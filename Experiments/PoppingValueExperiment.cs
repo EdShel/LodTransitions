@@ -11,7 +11,7 @@ using System.Text;
 
 namespace LodTransitions.Experiments
 {
-    public class PoppingValueExperiment : IDisposable
+    public class PoppingValueExperiment : BaseRenderingExperiment
     {
         private PoppingValueExperimentStage[] experiments;
         private int currentExperiment;
@@ -65,7 +65,7 @@ namespace LodTransitions.Experiments
             };
         }
 
-        public void Draw(GameTime gameTime)
+        public override void Draw(GameTime gameTime)
         {
             if (this.currentExperiment < this.experiments.Length)
             {
@@ -109,7 +109,7 @@ namespace LodTransitions.Experiments
             ImGui.End();
         }
 
-        public void Dispose()
+        public override void DisposeCore()
         {
             foreach (var experiment in this.experiments)
             {
@@ -118,12 +118,11 @@ namespace LodTransitions.Experiments
         }
     }
 
-    public class PoppingValueExperimentStage : IDisposable
+    public class PoppingValueExperimentStage : BaseRenderingExperiment
     {
         private PoppingValueExperimentConfig config;
         private Scene scene;
         private RenderTarget2D renderTarget;
-        private SpriteBatch? spriteBatch;
 
         private Vector3 movementAxis = new Vector3(0, 0, 1f);
         private PerspectiveLookAtTargetCamera camera;
@@ -180,14 +179,12 @@ namespace LodTransitions.Experiments
             );
         }
 
-        public void Dispose()
+        public override void DisposeCore()
         {
             this.renderTarget.Dispose();
-            this.spriteBatch?.Dispose();
-            this.spriteBatch = null!;
         }
 
-        public void Draw(GameTime gameTime)
+        public override void Draw(GameTime gameTime)
         {
             if (this.IsFinished)
             {
@@ -232,7 +229,7 @@ namespace LodTransitions.Experiments
 
             if (this.config.OutputToBackBuffer)
             {
-                DrawInBackBuffer(graphicsDevice);
+                DrawInBackBuffer(graphicsDevice, this.renderTarget);
             }
         }
 
@@ -254,30 +251,6 @@ namespace LodTransitions.Experiments
             return MathF.Sqrt(sum);
         }
 
-        private void DrawInBackBuffer(GraphicsDevice graphicsDevice)
-        {
-            graphicsDevice.SetRenderTarget(null);
-            int windowWidth = graphicsDevice.PresentationParameters.BackBufferWidth;
-            int windowHeight = graphicsDevice.PresentationParameters.BackBufferHeight;
-
-            float scaleX = ((float)windowWidth) / this.renderTarget.Width;
-            float scaleY = ((float)windowHeight) / this.renderTarget.Height;
-            float scale = Math.Min(scaleX, scaleY);
-
-            float destWidth = this.renderTarget.Width * scale;
-            float destHeight = this.renderTarget.Height * scale;
-            float paddingLeft = (windowWidth - destWidth) / 2;
-            float paddingTop = (windowHeight - destHeight) / 2;
-
-            if (this.spriteBatch == null)
-            {
-                this.spriteBatch = new SpriteBatch(graphicsDevice);
-            }
-
-            this.spriteBatch.Begin();
-            this.spriteBatch.Draw(this.renderTarget, new Rectangle((int)paddingLeft, (int)paddingTop, (int)destWidth, (int)destHeight), null, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
-            this.spriteBatch.End();
-        }
     }
 
     public class PoppingValueExperimentConfig

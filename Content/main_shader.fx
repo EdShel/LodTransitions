@@ -49,9 +49,8 @@ float4 MainPS(MainVertexShaderOutput input) : COLOR
 
 float4 AlphaPS(MainVertexShaderOutput input) : COLOR
 {
-	float lightIntensity = max(dot(input.Normal, LightDirection), 0.0);
-
-	return float4(Albedo * lightIntensity, Progress);
+	// This program is supposed to write only to the Depth buffer, don't waste time on pixel color
+	return float4(0, 0, 0, 1);
 }
 
 /* Noise blending shader */
