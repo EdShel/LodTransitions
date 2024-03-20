@@ -6,7 +6,11 @@ namespace LodTransitions.Utilities
     {
         public static string ToStringWithDot(this float value)
         {
-            return value.ToString("0.0", CultureInfo.InvariantCulture);
+            return value.ToString("0.000000", CultureInfo.InvariantCulture);
+        }
+        public static string ToStringWithDot(this double value)
+        {
+            return value.ToString("0.000000", CultureInfo.InvariantCulture);
         }
     }
 }

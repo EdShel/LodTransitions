@@ -47,7 +47,8 @@ namespace LodTransitions
             this.ImGuiRenderer = new ImGuiRenderer(this);
             this.ImGuiRenderer.RebuildFontAtlas();
 
-            experiment = new PoppingValueExperiment(this);
+            experiment = new BenchmarkExperimentRunner(this);
+            // experiment = new PoppingValueExperiment(this);
             // this.experiment = new DebugExperiment(this);
 
             base.Initialize();
