@@ -12,21 +12,21 @@ namespace LodTransitions.Experiments
 {
     public class DebugExperiment : BaseRenderingExperiment
     {
+        private RenderingPipeline screenRenderer;
         private Scene scene;
-        private RenderTarget2D renderTarget;
         private PerspectiveLookAtTargetCamera camera;
-        private PerspectiveLookAtTargetCamera previewCamera;
+        private PerspectiveLookAtTargetCamera? previewCamera;
 
         private float distance = 0.5f;
-        private float previewDistance = 0.75f;
+        private float previewDistance = 1f;
 
         private FpsCounter fpsCounter = new FpsCounter();
         private CloseUpPreviewWindow? closeUpPreviewWindow;
 
         private ImGuiRenderer imGuiRenderer;
 
-        private int previewWidth = 400;
-        private int previewHeight = 400;
+        private int previewWidth = 200;
+        private int previewHeight = 200;
 
         public DebugExperiment(MyGame game)
         {
@@ -38,9 +38,10 @@ namespace LodTransitions.Experiments
             var mainShader = content.Load<Effect>("main_shader");
             var mainMaterial = new MainMaterial(mainShader);
 
-            var transitionKind = LodTransitionKind.Noise;
-            ILodTransition transition = transitionKind switch
+            var transitionKind = LodTransitionKind.Alpha;
+            ILodTransition? transition = transitionKind switch
             {
+                LodTransitionKind.Discrete => null,
                 LodTransitionKind.Alpha => new AlphaTransition(mainMaterial),
                 LodTransitionKind.Noise => new NoiseTransition(mainMaterial, game.Content.Load<Texture2D>("dither")),
                 LodTransitionKind.Geomorphing => new GeomorphTransition(mainMaterial),
@@ -53,12 +54,10 @@ namespace LodTransitions.Experiments
             var lodModelRenderer = new LodModelRenderer(Vector3.Zero, lodModel, transition, mainMaterial);
 
             this.scene = new Scene();
-            scene.SkyColor = Color.Red;
+            this.scene.SkyColor = Color.CornflowerBlue;
             this.scene.AddInstance(lodModelRenderer);
 
-            // DepthFormat depthFormat = transitionKind == LodTransitionKind.Alpha ? DepthFormat.None : DepthFormat.Depth16;
-            this.renderTarget = new RenderTarget2D(graphicsDevice, graphicsDevice.PresentationParameters.BackBufferWidth, graphicsDevice.PresentationParameters.BackBufferHeight, false, SurfaceFormat.Color, DepthFormat.Depth16);
-
+            this.screenRenderer = new RenderingPipeline(graphicsDevice, null);
             this.camera = new PerspectiveLookAtTargetCamera(
                 ViewConfig: new LookAtTargetCameraViewConfig
                 {
@@ -71,56 +70,18 @@ namespace LodTransitions.Experiments
                     Fov = MathHelper.PiOver2,
                     NearPlane = 0.001f,
                     FarPlane = 200f,
-                    AspectRatio = ((float)this.renderTarget.Width) / this.renderTarget.Height,
+                    AspectRatio = ((float)this.screenRenderer.Width) / this.screenRenderer.Height,
                 }
             );
-
-            this.previewCamera = new PerspectiveLookAtTargetCamera(
-                ViewConfig: new LookAtTargetCameraViewConfig
-                {
-                    LookAt = Vector3.Zero,
-                    Position = Vector3.Zero,
-                    Up = Vector3.Up,
-                },
-                ProjectionConfig: new PerspectiveCameraProjectionConfig
-                {
-                    Fov = MathHelper.PiOver2,
-                    NearPlane = 0.001f,
-                    FarPlane = 200f,
-                    AspectRatio = ((float)this.renderTarget.Width) / this.renderTarget.Height,
-                }
-            );
+            this.screenRenderer.Camera = this.camera;
         }
 
         public override void Draw(GameTime gameTime)
         {
-            var graphicsDevice = this.renderTarget.GraphicsDevice;
+            var graphicsDevice = this.screenRenderer.Graphics;
 
-            graphicsDevice.SetRenderTarget(this.renderTarget);
             this.camera.ViewConfig.Position = new Vector3(0, 0, 1f) * this.distance;
-            var world = new World3D
-            {
-                Graphics = graphicsDevice,
-                Dt = (float)gameTime.ElapsedGameTime.TotalSeconds,
-                Camera = this.camera,
-            };
-
-            if (this.closeUpPreviewWindow != null)
-            {
-                this.previewCamera.ViewConfig.Position = new Vector3(1f, 0, 0) * this.previewDistance;
-                var previewWorld3d = new World3D
-                {
-                    Graphics = graphicsDevice,
-                    Dt = (float)gameTime.ElapsedGameTime.TotalSeconds,
-                    Camera = this.previewCamera,
-                    DebugObserverPosition = this.camera.View.Position
-                };
-                this.closeUpPreviewWindow.RedrawImage(this.scene, previewWorld3d);
-            }
-
-            this.scene.Draw(world);
-
-            DrawInBackBuffer(graphicsDevice, this.renderTarget);
+            this.screenRenderer.RedrawMainTexture(this.scene);
 
             ImGui.Begin("Debug");
 
@@ -136,27 +97,48 @@ namespace LodTransitions.Experiments
             {
                 if (previewEnabled)
                 {
-                    this.closeUpPreviewWindow = new CloseUpPreviewWindow(this.imGuiRenderer, graphicsDevice, this.previewWidth, this.previewHeight);
+                    var previewRenderer = new RenderingPipeline(graphicsDevice, new Point(this.previewWidth, this.previewHeight));
+                    this.previewCamera = new PerspectiveLookAtTargetCamera(
+                        ViewConfig: new LookAtTargetCameraViewConfig
+                        {
+                            LookAt = Vector3.Zero,
+                            Position = Vector3.Zero,
+                            Up = Vector3.Up,
+                        },
+                        ProjectionConfig: new PerspectiveCameraProjectionConfig
+                        {
+                            Fov = MathHelper.PiOver2,
+                            NearPlane = 0.001f,
+                            FarPlane = 200f,
+                            AspectRatio = ((float)previewRenderer.Width) / previewRenderer.Height,
+                        }
+                    );
+                    previewRenderer.Camera = this.previewCamera;
+                    this.closeUpPreviewWindow = new CloseUpPreviewWindow(this.imGuiRenderer, previewRenderer);
                 }
                 else if (this.closeUpPreviewWindow != null)
                 {
                     this.closeUpPreviewWindow.Dispose();
                     this.closeUpPreviewWindow = null;
+                    this.previewCamera = null;
                 }
             }
 
-            if (this.closeUpPreviewWindow != null)
+            if (this.closeUpPreviewWindow != null && this.previewCamera != null)
             {
-                this.closeUpPreviewWindow.DrawImguiImage();
+                this.previewCamera.ViewConfig.Position = new Vector3(0, 0, 1f) * this.previewDistance;
+                this.closeUpPreviewWindow.Pipeline.DebugObserverPosition = this.camera.View.Position;
+                this.closeUpPreviewWindow.Redraw(this.scene);
             }
+            this.screenRenderer.PutOnScreen();
 
             ImGui.End();
-
         }
 
         public override void DisposeCore()
         {
-            this.renderTarget.Dispose();
+            this.screenRenderer.Dispose();
+            this.closeUpPreviewWindow?.Dispose();
         }
     }
 }

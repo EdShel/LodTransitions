@@ -14,7 +14,7 @@ namespace LodTransitions.Rendering.Lods
             this.mainMaterial = mainMaterial;
         }
 
-        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, World3D world)
+        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, RenderingPipeline pipeline)
         {
             var cacheEntry = (to.Id, from.Id);
             GeomorphedMesh geomorphedMesh = this.geomorphCache.GetOrCreate(cacheEntry, () => MeshGeomorpher.Create(to.Mesh, from.Mesh));
@@ -26,7 +26,7 @@ namespace LodTransitions.Rendering.Lods
                 graphicsDevice.Indices = part.IndexBuffer;
 
                 this.mainMaterial.Progress = progress;
-                this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
+                this.mainMaterial.WorldViewProjection = transform * pipeline.Camera.View.Matrix * pipeline.Camera.Projection.Matrix;
                 this.mainMaterial.GeomorphPass.Apply();
                 graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             }

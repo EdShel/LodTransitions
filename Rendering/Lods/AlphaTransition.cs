@@ -4,11 +4,13 @@ using System;
 
 namespace LodTransitions.Rendering.Lods
 {
-    public class AlphaTransition : ILodTransition, IDisposable
+    public class AlphaTransition : ILodTransition, ITransparentRenderable, IDisposable
     {
         private readonly MainMaterial mainMaterial;
         private readonly RasterizerState rasterizerState;
         private readonly BlendState blendDepthOnly;
+
+        private Action? drawTransparent;
 
         public AlphaTransition(MainMaterial mainMaterial)
         {
@@ -26,20 +28,29 @@ namespace LodTransitions.Rendering.Lods
             };
         }
 
-        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, World3D world)
+        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, RenderingPipeline pipeline)
         {
-            var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
-            var oldBlendState = graphicsDevice.BlendState;
-            var oldDepthStencilState = graphicsDevice.DepthStencilState;
+            pipeline.DefferTransparentRendering(this);
+            this.drawTransparent = () =>
+            {
+                var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
+                var oldBlendState = graphicsDevice.BlendState;
+                var oldDepthStencilState = graphicsDevice.DepthStencilState;
 
-            graphicsDevice.RasterizerState = this.rasterizerState;
+                graphicsDevice.RasterizerState = this.rasterizerState;
 
-            this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
-            DrawTransparentModelDoublePass(to, graphicsDevice, progress);
-            DrawTransparentModelDoublePass(from, graphicsDevice, 1f - progress);
-   
-            graphicsDevice.BlendState = oldBlendState;
-            graphicsDevice.DepthStencilState = oldDepthStencilState;
+                this.mainMaterial.WorldViewProjection = transform * pipeline.Camera.View.Matrix * pipeline.Camera.Projection.Matrix;
+                DrawTransparentModelDoublePass(to, graphicsDevice, progress);
+                DrawTransparentModelDoublePass(from, graphicsDevice, 1f - progress);
+
+                graphicsDevice.BlendState = oldBlendState;
+                graphicsDevice.DepthStencilState = oldDepthStencilState;
+            };
+        }
+
+        public void DrawTransparent(RenderingPipeline pipeline)
+        {
+            this.drawTransparent?.Invoke();
         }
 
         private void DrawTransparentModelDoublePass(LodLevel lod, GraphicsDevice graphicsDevice, float alpha)
@@ -54,14 +65,15 @@ namespace LodTransitions.Rendering.Lods
                 graphicsDevice.Indices = part.IndexBuffer;
                 graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             }
-            var startBlendState = new BlendState
+            using var bs = new BlendState
             {
                 ColorSourceBlend = Blend.BlendFactor,
                 ColorDestinationBlend = Blend.InverseBlendFactor,
+                AlphaSourceBlend = Blend.BlendFactor,
+                AlphaDestinationBlend = Blend.One,
                 BlendFactor = new Color(alpha, alpha, alpha, alpha),
-                ColorBlendFunction = BlendFunction.Add,
             };
-            graphicsDevice.BlendState = startBlendState;
+            graphicsDevice.BlendState = bs;
             graphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
             this.mainMaterial.MainPass.Apply();
             foreach (var part in lod.Mesh.MeshParts)

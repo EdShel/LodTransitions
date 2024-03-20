@@ -28,6 +28,18 @@ namespace LodTransitions.Experiments
             this.experiments = new[] {
                 new PoppingValueExperimentStage(game, new PoppingValueExperimentConfig
                 {
+                    Transition = LodTransitionKind.Discrete,
+                    Model = "stanford-bunny",
+                    ImageWidth = this.graphicsDevice.PresentationParameters.BackBufferWidth,
+                    ImageHeight = this.graphicsDevice.PresentationParameters.BackBufferHeight,
+                    StartDistance = 0.5f,
+                    FinishDistance = 10f,
+                    LowestLodDistance = 9f,
+                    SnapshotIterations = 1000,
+                    OutputToBackBuffer = true,
+                }),
+                new PoppingValueExperimentStage(game, new PoppingValueExperimentConfig
+                {
                     Transition = LodTransitionKind.Alpha,
                     Model = "stanford-bunny",
                     ImageWidth = this.graphicsDevice.PresentationParameters.BackBufferWidth,
@@ -67,6 +79,8 @@ namespace LodTransitions.Experiments
 
         public override void Draw(GameTime gameTime)
         {
+            ImGui.Begin("Debug");
+
             if (this.currentExperiment < this.experiments.Length)
             {
                 var experiment = this.experiments[this.currentExperiment];
@@ -80,7 +94,8 @@ namespace LodTransitions.Experiments
 
                     if (this.currentExperiment >= this.experiments.Length)
                     {
-                        var sb = new StringBuilder("Alpha,Noise,Geomorphing");
+                        var sb = new StringBuilder();
+                        sb.AppendLine("Discrete,Alpha,Noise,Geomorphing");
                         int els = this.results[0].Count;
                         for (int i = 0; i < els; i++)
                         {
@@ -97,14 +112,17 @@ namespace LodTransitions.Experiments
                         System.IO.File.WriteAllText("./result.csv", sb.ToString());
                     }
                 }
+            } else
+            {
+                ImGui.Text("Done!");
             }
 
-            ImGui.Begin("Debug");
 
             ImGui.Text($"FPS: {this.fpsCounter.Fps}");
             ImGui.Text($"{nameof(this.graphicsDevice.Metrics.DrawCount)}: {this.graphicsDevice.Metrics.DrawCount}");
             ImGui.Text($"{nameof(this.graphicsDevice.Metrics.ClearCount)}: {this.graphicsDevice.Metrics.ClearCount}");
             ImGui.Text($"{nameof(this.graphicsDevice.Metrics.PrimitiveCount)}: {this.graphicsDevice.Metrics.PrimitiveCount}");
+
 
             ImGui.End();
         }
@@ -122,7 +140,7 @@ namespace LodTransitions.Experiments
     {
         private PoppingValueExperimentConfig config;
         private Scene scene;
-        private RenderTarget2D renderTarget;
+        private RenderingPipeline pipeline;
 
         private Vector3 movementAxis = new Vector3(0, 0, 1f);
         private PerspectiveLookAtTargetCamera camera;
@@ -145,8 +163,9 @@ namespace LodTransitions.Experiments
             var mainShader = content.Load<Effect>("main_shader");
             var mainMaterial = new MainMaterial(mainShader);
 
-            ILodTransition transition = config.Transition switch
+            ILodTransition? transition = config.Transition switch
             {
+                LodTransitionKind.Discrete => null,
                 LodTransitionKind.Alpha => new AlphaTransition(mainMaterial),
                 LodTransitionKind.Noise => new NoiseTransition(mainMaterial, game.Content.Load<Texture2D>("dither")),
                 LodTransitionKind.Geomorphing => new GeomorphTransition(mainMaterial),
@@ -159,8 +178,6 @@ namespace LodTransitions.Experiments
 
             this.scene = new Scene();
             this.scene.AddInstance(lodModelRenderer);
-
-            this.renderTarget = new RenderTarget2D(graphicsDevice, config.ImageWidth, config.ImageHeight, false, SurfaceFormat.Color, DepthFormat.Depth16);
 
             this.camera = new PerspectiveLookAtTargetCamera(
                 ViewConfig: new LookAtTargetCameraViewConfig
@@ -177,11 +194,14 @@ namespace LodTransitions.Experiments
                     AspectRatio = ((float)config.ImageWidth) / config.ImageHeight,
                 }
             );
+
+            this.pipeline = new RenderingPipeline(graphicsDevice, new Point(config.ImageWidth, config.ImageHeight));
+            this.pipeline.Camera = this.camera;
         }
 
         public override void DisposeCore()
         {
-            this.renderTarget.Dispose();
+            this.pipeline.Dispose();
         }
 
         public override void Draw(GameTime gameTime)
@@ -190,8 +210,6 @@ namespace LodTransitions.Experiments
             {
                 throw new InvalidOperationException("The experiment is already finished.");
             }
-
-            var graphicsDevice = this.renderTarget.GraphicsDevice;
 
             this.camera.ViewConfig.Position = this.movementAxis * (this.config.StartDistance + (this.config.FinishDistance - this.config.StartDistance) / this.config.SnapshotIterations * this.iteration);
             this.iteration++;
@@ -202,20 +220,13 @@ namespace LodTransitions.Experiments
                 System.Diagnostics.Debug.WriteLine("Done");
             }
 
-            graphicsDevice.SetRenderTarget(this.renderTarget);
-            var world = new World3D
-            {
-                Graphics = graphicsDevice,
-                Dt = (float)gameTime.ElapsedGameTime.TotalSeconds,
-                Camera = this.camera,
-            };
-            this.scene.Draw(world);
+            this.pipeline.RedrawMainTexture(scene);
 
             if (this.currentFrame == null)
             {
                 this.currentFrame = new Color[this.config.ImageWidth * this.config.ImageHeight];
             }
-            this.renderTarget.GetData(this.currentFrame);
+            this.pipeline.MainTexture.GetData(this.currentFrame);
 
             if (this.previousFrame != null)
             {
@@ -229,7 +240,7 @@ namespace LodTransitions.Experiments
 
             if (this.config.OutputToBackBuffer)
             {
-                DrawInBackBuffer(graphicsDevice, this.renderTarget);
+                this.pipeline.PutOnScreen();
             }
         }
 

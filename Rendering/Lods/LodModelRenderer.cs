@@ -24,9 +24,9 @@ namespace LodTransitions.Rendering.Lods
                 this.transitionThreshold = value;
             }
         }
-        public ILodTransition Transition { get; set; }
+        public ILodTransition? Transition { get; set; }
 
-        public LodModelRenderer(Vector3 position, LodModel lodModel, ILodTransition transition, MainMaterial mainMaterial)
+        public LodModelRenderer(Vector3 position, LodModel lodModel, ILodTransition? transition, MainMaterial mainMaterial)
         {
             this.Position = position;
             this.LodModel = lodModel;
@@ -34,17 +34,23 @@ namespace LodTransitions.Rendering.Lods
             this.mainMaterial = mainMaterial;
         }
 
-        public void Draw(World3D world)
+        public void Draw(RenderingPipeline pipeline)
         {
-            float distanceToCameraSqr = (this.Position - world.ObserverPosition).LengthSquared();
+            float distanceToCameraSqr = (this.Position - pipeline.ObserverPosition).LengthSquared();
 
             for (int i = 0; i < this.LodModel.Lods.Count - 1; i++)
             {
                 LodLevel lod = this.LodModel.Lods[i];
                 if (distanceToCameraSqr >= lod.DistanceSqr)
                 {
-                    DrawSimpleLod(world, lod);
+                    DrawSimpleLod(pipeline, lod);
                     return;
+                }
+
+                if (this.Transition == null)
+                {
+                    // Discrete LOD
+                    continue;
                 }
 
                 LodLevel nextLod = this.LodModel.Lods[i + 1];
@@ -54,15 +60,15 @@ namespace LodTransitions.Rendering.Lods
                 if (distanceToCameraSqr > transitionStart)
                 {
                     float progress = (distanceToCameraSqr - transitionStart) / transitionDistanceSqr;
-                    this.Transition.Draw(progress, lod, nextLod, Matrix.CreateTranslation(this.Position), world);
+                    this.Transition.Draw(progress, lod, nextLod, Matrix.CreateTranslation(this.Position), pipeline);
                     return;
                 }
             }
 
-            DrawSimpleLod(world, this.LodModel.Lods.Last());
+            DrawSimpleLod(pipeline, this.LodModel.Lods.Last());
         }
 
-        private void DrawSimpleLod(World3D world, LodLevel lod)
+        private void DrawSimpleLod(RenderingPipeline pipeline, LodLevel lod)
         {
             var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
             foreach (ModelMeshPart part in lod.Mesh.MeshParts)
@@ -70,7 +76,7 @@ namespace LodTransitions.Rendering.Lods
                 graphicsDevice.SetVertexBuffer(part.VertexBuffer);
                 graphicsDevice.Indices = part.IndexBuffer;
 
-                this.mainMaterial.WorldViewProjection = Matrix.CreateTranslation(this.Position) * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
+                this.mainMaterial.WorldViewProjection = Matrix.CreateTranslation(this.Position) * pipeline.Camera.View.Matrix * pipeline.Camera.Projection.Matrix;
                 this.mainMaterial.MainPass.Apply();
                 graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, part.VertexOffset, part.StartIndex, part.PrimitiveCount);
             }

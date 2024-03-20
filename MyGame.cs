@@ -31,8 +31,8 @@ namespace LodTransitions
             this.Content.RootDirectory = "Content";
             this.IsMouseVisible = true;
 
-            //this.GraphicsDeviceManager.SynchronizeWithVerticalRetrace = false;
-            //this.IsFixedTimeStep = false;
+            this.GraphicsDeviceManager.SynchronizeWithVerticalRetrace = false;
+            this.IsFixedTimeStep = false;
         }
 
         private Effect axisShader;
@@ -47,8 +47,8 @@ namespace LodTransitions
             this.ImGuiRenderer = new ImGuiRenderer(this);
             this.ImGuiRenderer.RebuildFontAtlas();
 
-            // experiment = new PoppingValueExperiment(this);
-            this.experiment = new DebugExperiment(this);
+            experiment = new PoppingValueExperiment(this);
+            // this.experiment = new DebugExperiment(this);
 
             base.Initialize();
         }

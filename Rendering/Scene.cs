@@ -1,11 +1,12 @@
 ﻿using LodTransitions.Rendering.Lods;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 
 namespace LodTransitions.Rendering
 {
-    public class Scene : IRenderable
+    public class Scene : IRenderable, IDisposable
     {
         private List<IRenderable> renderables = new List<IRenderable>();
 
@@ -34,14 +35,22 @@ namespace LodTransitions.Rendering
 #endif
         }
 
-        public void Draw(World3D world)
+        private RenderTarget2D? transparentRenderTarget;
+        private SpriteBatch? spriteBatch;
+
+        public void Draw(RenderingPipeline pipeline)
         {
-            world.Graphics.Clear(this.SkyColor);
+            pipeline.Graphics.Clear(this.SkyColor);
 
             foreach (var renderable in this.renderables)
             {
-                renderable.Draw(world);
+                renderable.Draw(pipeline);
             }
+        }
+
+        public void Dispose()
+        {
+            this.transparentRenderTarget?.Dispose();
         }
     }
 }

@@ -20,12 +20,12 @@ namespace LodTransitions.Rendering.Lods
             };
         }
 
-        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, World3D world)
+        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, RenderingPipeline pipeline)
         {
             var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
             graphicsDevice.RasterizerState = this.rasterizerState;
             graphicsDevice.DepthStencilState = DepthStencilState.Default;
-            this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
+            this.mainMaterial.WorldViewProjection = transform * pipeline.Camera.View.Matrix * pipeline.Camera.Projection.Matrix;
             this.mainMaterial.Effect.Parameters["NoiseTexture"].SetValue(this.dither);
             this.mainMaterial.Effect.Parameters["NoiseTextureScale"].SetValue(new Vector2(16f, 16f));
             this.mainMaterial.Effect.Parameters["ScreenSize"].SetValue(new Vector2(graphicsDevice.Viewport.Width, graphicsDevice.Viewport.Height));
