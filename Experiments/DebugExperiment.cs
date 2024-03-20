@@ -38,11 +38,11 @@ namespace LodTransitions.Experiments
             var mainShader = content.Load<Effect>("main_shader");
             var mainMaterial = new MainMaterial(mainShader);
 
-            var transitionKind = LodTransitionKind.Alpha;
+            var transitionKind = LodTransitionKind.Noise;
             ILodTransition transition = transitionKind switch
             {
                 LodTransitionKind.Alpha => new AlphaTransition(mainMaterial),
-                LodTransitionKind.Noise => new NoiseTransition(mainMaterial),
+                LodTransitionKind.Noise => new NoiseTransition(mainMaterial, game.Content.Load<Texture2D>("dither")),
                 LodTransitionKind.Geomorphing => new GeomorphTransition(mainMaterial),
                 _ => throw new ArgumentException("Invalid LOD transition.")
             };

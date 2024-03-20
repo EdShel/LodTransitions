@@ -24,7 +24,10 @@ namespace LodTransitions
 
         public MyGame()
         {
-            this.GraphicsDeviceManager = new GraphicsDeviceManager(this);
+            this.GraphicsDeviceManager = new GraphicsDeviceManager(this)
+            {
+                GraphicsProfile = GraphicsProfile.HiDef
+            };
             this.Content.RootDirectory = "Content";
             this.IsMouseVisible = true;
 

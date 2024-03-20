@@ -148,7 +148,7 @@ namespace LodTransitions.Experiments
             ILodTransition transition = config.Transition switch
             {
                 LodTransitionKind.Alpha => new AlphaTransition(mainMaterial),
-                LodTransitionKind.Noise => new NoiseTransition(mainMaterial),
+                LodTransitionKind.Noise => new NoiseTransition(mainMaterial, game.Content.Load<Texture2D>("dither")),
                 LodTransitionKind.Geomorphing => new GeomorphTransition(mainMaterial),
                 _ => throw new ArgumentException("Invalid LOD transition.", nameof(config.Transition))
             };

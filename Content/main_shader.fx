@@ -3,8 +3,8 @@
 	#define VS_SHADERMODEL vs_3_0
 	#define PS_SHADERMODEL ps_3_0
 #else
-	#define VS_SHADERMODEL vs_4_0_level_9_1
-	#define PS_SHADERMODEL ps_4_0_level_9_1
+	#define VS_SHADERMODEL vs_5_0
+	#define PS_SHADERMODEL ps_5_0
 #endif
 
 /* Parameters */
@@ -13,6 +13,17 @@ matrix WorldViewProjection;
 float3 Albedo = float3(1, 1, 1);
 float3 LightDirection = float3(0, 1, 0);
 float Progress = 0;
+float2 ScreenSize;
+Texture2D NoiseTexture : register(t0);
+sampler NoiseTextureSampler : register(s0)
+{
+    Texture = (NoiseTexture);
+	Filter = Point;
+	AddressU = Wrap;
+    AddressV = Wrap;
+};
+float2 NoiseTextureScale;
+bool InvertNoiseTexture;
 
 /* Base 3D model rendering */
 
@@ -55,34 +66,14 @@ float4 AlphaPS(MainVertexShaderOutput input) : COLOR
 
 /* Noise blending shader */
 
-struct NoiseVertexShaderOutput
+float4 NoisePS(MainVertexShaderOutput input) : COLOR
 {
-	float4 Position : SV_POSITION;
-	float3 Normal : NORMAL0;
-	float2 UV: TEXCOORD0;
-};
-
-
-NoiseVertexShaderOutput NoiseVS(in MainVertexShaderInput input)
-{
-	NoiseVertexShaderOutput output;
-
-	output.Position = mul(float4(input.Position, 1.0), WorldViewProjection);
-	output.Normal = normalize(input.Normal);
-	output.UV = output.Position.xy;
-
-	return output;
-}
-
-float DitherPattern(float2 coord)
-{
-	return frac(sin(dot(coord, float2(12.9898, 78.233))) * 43758.5453);
-}
-
-float4 NoisePS(NoiseVertexShaderOutput input) : COLOR
-{
-	float dither = DitherPattern(input.UV);
-	clip(dither - Progress);
+	float dither = tex2D(NoiseTextureSampler, input.Position.xy / ScreenSize * NoiseTextureScale).r;
+	if (InvertNoiseTexture) {
+		clip(Progress - dither);
+	} else {
+		clip(dither - Progress);
+	}
 
 	float lightIntensity = max(dot(input.Normal, LightDirection), 0.0);
 
@@ -128,7 +119,7 @@ technique BasicColorDrawing
 	}
 	pass NoisePass
 	{
-		VertexShader = compile VS_SHADERMODEL NoiseVS();
+		VertexShader = compile VS_SHADERMODEL MainVS();
 		PixelShader = compile PS_SHADERMODEL NoisePS();
 	}
 	pass GeomorphPass

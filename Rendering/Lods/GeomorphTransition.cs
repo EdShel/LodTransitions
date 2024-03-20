@@ -14,10 +14,10 @@ namespace LodTransitions.Rendering.Lods
             this.mainMaterial = mainMaterial;
         }
 
-        public void Draw(float progress, LodLevel start, LodLevel end, Matrix transform, World3D world)
+        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, World3D world)
         {
-            var cacheEntry = (start.Id, end.Id);
-            GeomorphedMesh geomorphedMesh = this.geomorphCache.GetOrCreate(cacheEntry, () => MeshGeomorpher.Create(start.Mesh, end.Mesh));
+            var cacheEntry = (to.Id, from.Id);
+            GeomorphedMesh geomorphedMesh = this.geomorphCache.GetOrCreate(cacheEntry, () => MeshGeomorpher.Create(to.Mesh, from.Mesh));
 
             var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
             foreach (var part in geomorphedMesh.Parts)

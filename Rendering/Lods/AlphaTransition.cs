@@ -26,7 +26,7 @@ namespace LodTransitions.Rendering.Lods
             };
         }
 
-        public void Draw(float progress, LodLevel start, LodLevel end, Matrix transform, World3D world)
+        public void Draw(float progress, LodLevel to, LodLevel from, Matrix transform, World3D world)
         {
             var graphicsDevice = this.mainMaterial.Effect.GraphicsDevice;
             var oldBlendState = graphicsDevice.BlendState;
@@ -35,8 +35,8 @@ namespace LodTransitions.Rendering.Lods
             graphicsDevice.RasterizerState = this.rasterizerState;
 
             this.mainMaterial.WorldViewProjection = transform * world.Camera.View.Matrix * world.Camera.Projection.Matrix;
-            DrawTransparentModelDoublePass(start, graphicsDevice, progress);
-            DrawTransparentModelDoublePass(end, graphicsDevice, 1f - progress);
+            DrawTransparentModelDoublePass(to, graphicsDevice, progress);
+            DrawTransparentModelDoublePass(from, graphicsDevice, 1f - progress);
    
             graphicsDevice.BlendState = oldBlendState;
             graphicsDevice.DepthStencilState = oldDepthStencilState;
